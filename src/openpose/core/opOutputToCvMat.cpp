@@ -12,7 +12,9 @@ namespace op
                 error("Wrong input element (empty outputData).", __LINE__, __FUNCTION__, __FILE__);
             // outputData to cvMat
             cv::Mat cvMat;
-            outputData.getConstCvMat().convertTo(cvMat, CV_8UC3);
+            const std::array<int, 3> outputResolution{outputData.getSize(2), outputData.getSize(1),
+                                                      outputData.getSize(0)};
+            floatPtrToUCharCvMat(cvMat, outputData.getConstPtr(), outputResolution);
             // Return cvMat
             return cvMat;
         }

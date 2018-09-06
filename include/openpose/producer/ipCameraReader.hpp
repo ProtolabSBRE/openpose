@@ -20,10 +20,6 @@ namespace op
 
         std::vector<cv::Mat> getCameraMatrices();
 
-        std::vector<cv::Mat> getCameraExtrinsics();
-
-        std::vector<cv::Mat> getCameraIntrinsics();
-
         std::string getNextFrameName();
 
         inline double get(const int capProperty)

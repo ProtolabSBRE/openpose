@@ -13,16 +13,15 @@ namespace op
 {
     #ifdef USE_OPENCL
         const std::string nmsOclCommonFunctions = MULTI_LINE_STRING(
-            void nmsAccuratePeakPosition(__global const Type* sourcePtr, Type* fx, Type* fy, Type* fscore,
-                                         const int peakLocX, const int peakLocY, const int width, const int height,
-                                         const Type offsetX, const Type offsetY)
+            void nmsAccuratePeakPosition(__global const Type* sourcePtr, const int peakLocX, const int peakLocY,
+                                         const int width, const int height, Type* fx, Type* fy, Type* fscore)
             {
                 Type xAcc = 0.f;
                 Type yAcc = 0.f;
                 Type scoreAcc = 0.f;
                 const int dWidth = 3;
                 const int dHeight = 3;
-                for (int dy = -dHeight ; dy <= dHeight ; dy++)
+                for (auto dy = -dHeight ; dy <= dHeight ; dy++)
                 {
                     const int y = peakLocY + dy;
                     if (0 <= y && y < height) // Default height = 368
@@ -44,11 +43,8 @@ namespace op
                     }
                 }
 
-                // Offset to keep Matlab format (empirically higher acc)
-                // Best results for 1 scale: x + 0, y + 0.5
-                // +0.5 to both to keep Matlab format
-                *fx = xAcc / scoreAcc + offsetX;
-                *fy = yAcc / scoreAcc + offsetY;
+                *fx = xAcc / scoreAcc;
+                *fy = yAcc / scoreAcc;
                 *fscore = sourcePtr[peakLocY*width + peakLocX];
             }
 
@@ -89,7 +85,10 @@ namespace op
                             && value > left && value > right
                             && value > bottomLeft && value > bottom && value > bottomRight)
                         {
+                            //Type fx = 0; Type fy = 0; Type fscore = 0;
+                            //nmsAccuratePeakPosition(sourcePtr, x, y, w, h, &fx, &fy, &fscore);
                             kernelPtr[index] = 1;
+                            //if(debug) printf("%d %d \n", x,y);
                         }
                         else
                             kernelPtr[index] = 0;
@@ -102,11 +101,10 @@ namespace op
             }
         );
 
-        typedef cl::KernelFunctor<cl::Buffer, cl::Buffer, cl::Buffer, int, int, int, int, float, float> NMSWriteKernelFunctor;
+        typedef cl::KernelFunctor<cl::Buffer, cl::Buffer, cl::Buffer, int, int, int, int> NMSWriteKernelFunctor;
         const std::string nmsWriteKernel = MULTI_LINE_STRING(
             __kernel void nmsWriteKernel(__global Type* targetPtr, __global int* kernelPtr, __global const Type* sourcePtr,
-                                         const int w, const int h, const int maxPeaks, const int debug,
-                                         const Type offsetX, const Type offsetY)
+                                         const int w, const int h, const int maxPeaks, const int debug)
             {
                 int x = get_global_id(0);
                 int y = get_global_id(1);
@@ -120,7 +118,7 @@ namespace op
                         if (prev - curr)
                         {
                             Type fx = 0; Type fy = 0; Type fscore = 0;
-                            nmsAccuratePeakPosition(sourcePtr, &fx, &fy, &fscore, x, y, w, h, offsetX, offsetY);
+                            nmsAccuratePeakPosition(sourcePtr, x, y, w, h, &fx, &fy, &fscore);
                             //if (debug) printf("C %d %d %d \n", x,y,kernelPtr[index]);
                             __global Type* output = &targetPtr[curr*3];
                             output[0] = fx; output[1] = fy; output[2] = fscore;
@@ -146,8 +144,7 @@ namespace op
 
     template <typename T>
     void nmsOcl(T* targetPtr, int* kernelPtr, const T* const sourcePtr, const T threshold,
-                const std::array<int, 4>& targetSize, const std::array<int, 4>& sourceSize, const Point<T>& offset,
-                const int gpuID)
+                const std::array<int, 4>& targetSize, const std::array<int, 4>& sourceSize, const int gpuID)
     {
         try
         {
@@ -174,12 +171,12 @@ namespace op
                 cl::Buffer sourcePtrBuffer = cl::Buffer((cl_mem)(sourcePtr), true);
                 cl::Buffer kernelPtrBuffer = cl::Buffer((cl_mem)(kernelPtr), true);
                 cl::Buffer targetPtrBuffer = cl::Buffer((cl_mem)(targetPtr), true);
-                auto nmsRegisterKernel = OpenCL::getInstance(gpuID)->getKernelFunctorFromManager
-                        <NMSRegisterKernelFunctor, T>(
-                         "nmsRegisterKernel", op::nmsOclCommonFunctions + op::nmsRegisterKernel);
-                auto nmsWriteKernel = OpenCL::getInstance(gpuID)->getKernelFunctorFromManager
-                        <NMSWriteKernelFunctor, T>(
-                         "nmsWriteKernel", op::nmsOclCommonFunctions + op::nmsWriteKernel);
+                auto nmsRegisterKernel = op::OpenCL::getInstance(gpuID)->getKernelFunctorFromManager
+                        <op::NMSRegisterKernelFunctor, T>(
+                            "nmsRegisterKernel",op::nmsOclCommonFunctions + op::nmsRegisterKernel);
+                auto nmsWriteKernel = op::OpenCL::getInstance(gpuID)->getKernelFunctorFromManager
+                        <op::NMSWriteKernelFunctor, T>(
+                            "nmsWriteKernel",op::nmsOclCommonFunctions + op::nmsWriteKernel);
 
                 // log("num_b: " + std::to_string(bottom->shape(0)));       // = 1
                 // log("channel_b: " + std::to_string(bottom->shape(1)));   // = 57 = 18 body parts + bkg + 19x2 PAFs
@@ -208,8 +205,8 @@ namespace op
                         cl::Buffer kernelBuffer = kernelPtrBuffer.createSubBuffer(CL_MEM_READ_WRITE,
                                                                                   CL_BUFFER_CREATE_TYPE_REGION,
                                                                                   &kernelRegion);
-                        OpenCL::getBufferRegion<T>(sourceRegion, offsetChannel * imageOffset, imageOffset);
-                        OpenCL::getBufferRegion<T>(targetRegion, offsetChannel * targetChannelOffset, targetChannelOffset);
+                        op::OpenCL::getBufferRegion<T>(sourceRegion, offsetChannel * imageOffset, imageOffset);
+                        op::OpenCL::getBufferRegion<T>(targetRegion, offsetChannel * targetChannelOffset, targetChannelOffset);
                         cl::Buffer sourceBuffer = sourcePtrBuffer.createSubBuffer(CL_MEM_READ_ONLY,
                                                                                   CL_BUFFER_CREATE_TYPE_REGION,
                                                                                   &sourceRegion);
@@ -219,21 +216,20 @@ namespace op
 
                         // Run Kernel to get 1-0 map
                         bool debug = false;
-                        nmsRegisterKernel(cl::EnqueueArgs(OpenCL::getInstance(gpuID)->getQueue(), cl::NDRange(width, height)),
+                        nmsRegisterKernel(cl::EnqueueArgs(op::OpenCL::getInstance(gpuID)->getQueue(), cl::NDRange(width, height)),
                                           kernelBuffer, sourceBuffer, width, height, threshold, debug);
                         // This is a really bad approach. We need to write a custom accumalator to run on gpu
                         // Download it to CPU
-                        OpenCL::getInstance(gpuID)->getQueue().enqueueReadBuffer(kernelBuffer, CL_TRUE, 0,
+                        op::OpenCL::getInstance(gpuID)->getQueue().enqueueReadBuffer(kernelBuffer, CL_TRUE, 0,
                                                                                      sizeof(int) *  width * height, &kernelCPU[0]);
                         // Compute partial sum in CPU
                         std::partial_sum(kernelCPU.begin(),kernelCPU.end(),kernelCPU.begin());
                         // Reupload to GPU
-                        OpenCL::getInstance(gpuID)->getQueue().enqueueWriteBuffer(kernelBuffer, CL_TRUE, 0,
+                        op::OpenCL::getInstance(gpuID)->getQueue().enqueueWriteBuffer(kernelBuffer, CL_TRUE, 0,
                                                                                       sizeof(int) *  width * height, &kernelCPU[0]);
                         // Write Kernel
-                        nmsWriteKernel(cl::EnqueueArgs(OpenCL::getInstance(gpuID)->getQueue(), cl::NDRange(width, height)),
-                                          targetBuffer, kernelBuffer, sourceBuffer, width, height, targetPeaks-1, debug,
-                                          offset.x, offset.y);
+                        nmsWriteKernel(cl::EnqueueArgs(op::OpenCL::getInstance(gpuID)->getQueue(), cl::NDRange(width, height)),
+                                          targetBuffer, kernelBuffer, sourceBuffer, width, height, targetPeaks-1, debug);
                     }
                 }
             #else
@@ -243,18 +239,17 @@ namespace op
                 UNUSED(threshold);
                 UNUSED(targetSize);
                 UNUSED(sourceSize);
-                UNUSED(offset);
                 UNUSED(gpuID);
                 error("OpenPose must be compiled with the `USE_OPENCL` macro definition in order to use this"
                       " functionality.", __LINE__, __FUNCTION__, __FILE__);
             #endif
         }
-        #if defined(USE_OPENCL) && defined(CL_HPP_ENABLE_EXCEPTIONS)
-        catch (const cl::Error& e)
-        {
-            error(std::string(e.what()) + " : " + OpenCL::clErrorToString(e.err()) + " ID: " +
-                  std::to_string(gpuID), __LINE__, __FUNCTION__, __FILE__);
-        }
+        #ifdef USE_OPENCL
+            catch (const cl::Error& e)
+            {
+                error(std::string(e.what()) + " : " + op::OpenCL::clErrorToString(e.err()) + " ID: " +
+                      std::to_string(gpuID), __LINE__, __FUNCTION__, __FILE__);
+            }
         #endif
         catch (const std::exception& e)
         {
@@ -263,9 +258,7 @@ namespace op
     }
 
     template void nmsOcl(float* targetPtr, int* kernelPtr, const float* const sourcePtr, const float threshold,
-                         const std::array<int, 4>& targetSize, const std::array<int, 4>& sourceSize,
-                         const Point<float>& offset, const int gpuID);
+                         const std::array<int, 4>& targetSize, const std::array<int, 4>& sourceSize, int gpuID);
     template void nmsOcl(double* targetPtr, int* kernelPtr, const double* const sourcePtr, const double threshold,
-                         const std::array<int, 4>& targetSize, const std::array<int, 4>& sourceSize,
-                         const Point<double>& offset, const int gpuID);
+                         const std::array<int, 4>& targetSize, const std::array<int, 4>& sourceSize, int gpuID);
 }

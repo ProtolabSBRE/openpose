@@ -5,8 +5,6 @@ namespace op
 {
     Datum::Datum() :
         id{std::numeric_limits<unsigned long long>::max()},
-        subId{0},
-        subIdMax{0},
         poseIds{-1}
     {
     }
@@ -15,10 +13,7 @@ namespace op
     Datum::Datum(const Datum& datum) :
         // ID
         id{datum.id},
-        subId{datum.subId},
-        subIdMax{datum.subIdMax},
         name{datum.name},
-        frameNumber{datum.frameNumber},
         // Input image and rendered version
         cvInputData{datum.cvInputData},
         inputNetData{datum.inputNetData},
@@ -46,29 +41,7 @@ namespace op
         netInputSizes{datum.netInputSizes},
         scaleInputToOutput{datum.scaleInputToOutput},
         scaleNetToOutput{datum.scaleNetToOutput},
-        elementRendered{datum.elementRendered},
-        // 3D/Adam parameters
-        // Adam/Unity params
-        adamPosePtr{datum.adamPosePtr},
-        adamPoseRows{datum.adamPoseRows},
-        adamTranslationPtr{datum.adamTranslationPtr},
-        // Adam params (Jacobians)
-        vtVecPtr{datum.vtVecPtr},
-        vtVecRows{datum.vtVecRows},
-        j0VecPtr{datum.j0VecPtr},
-        j0VecRows{datum.j0VecRows},
-        adamFaceCoeffsExpPtr{datum.adamFaceCoeffsExpPtr},
-        adamFaceCoeffsExpRows{datum.adamFaceCoeffsExpRows}
-        #ifdef USE_EIGEN
-            ,
-            // Adam/Unity params
-            adamPose{datum.adamPose},
-            adamTranslation{datum.adamTranslation},
-            // Adam params (Jacobians)
-            vtVec{datum.vtVec},
-            j0Vec{datum.j0Vec},
-            adamFaceCoeffsExp{datum.adamFaceCoeffsExp}
-        #endif
+        elementRendered{datum.elementRendered}
     {
     }
 
@@ -79,10 +52,7 @@ namespace op
         {
             // ID
             id = datum.id;
-            subId = datum.subId;
-            subIdMax = datum.subIdMax;
             name = datum.name;
-            frameNumber = datum.frameNumber;
             // Input image and rendered version
             cvInputData = datum.cvInputData;
             inputNetData = datum.inputNetData;
@@ -111,27 +81,6 @@ namespace op
             scaleInputToOutput = datum.scaleInputToOutput;
             scaleNetToOutput = datum.scaleNetToOutput;
             elementRendered = datum.elementRendered;
-            // 3D/Adam parameters
-            // Adam/Unity params
-            adamPosePtr = datum.adamPosePtr;
-            adamPoseRows = datum.adamPoseRows;
-            adamTranslationPtr = datum.adamTranslationPtr;
-            // Adam params (Jacobians)
-            vtVecPtr = datum.vtVecPtr;
-            vtVecRows = datum.vtVecRows;
-            j0VecPtr = datum.j0VecPtr;
-            j0VecRows = datum.j0VecRows;
-            adamFaceCoeffsExpPtr = datum.adamFaceCoeffsExpPtr;
-            adamFaceCoeffsExpRows = datum.adamFaceCoeffsExpRows;
-            #ifdef USE_EIGEN
-                // Adam/Unity params
-                adamPose = datum.adamPose;
-                adamTranslation = datum.adamTranslation;
-                // Adam params (Jacobians)
-                vtVec = datum.vtVec;
-                j0Vec = datum.j0Vec;
-                adamFaceCoeffsExp = datum.adamFaceCoeffsExp;
-            #endif
             // Return
             return *this;
         }
@@ -146,9 +95,6 @@ namespace op
     Datum::Datum(Datum&& datum) :
         // ID
         id{datum.id},
-        subId{datum.subId},
-        subIdMax{datum.subIdMax},
-        frameNumber{datum.frameNumber},
         // Other parameters
         scaleInputToOutput{datum.scaleInputToOutput},
         scaleNetToOutput{datum.scaleNetToOutput}
@@ -183,27 +129,6 @@ namespace op
             std::swap(scaleInputToNetInputs, datum.scaleInputToNetInputs);
             std::swap(netInputSizes, datum.netInputSizes);
             std::swap(elementRendered, datum.elementRendered);
-            // 3D/Adam parameters
-            // Adam/Unity params
-            std::swap(adamPosePtr, datum.adamPosePtr);
-            adamPoseRows = datum.adamPoseRows;
-            std::swap(adamTranslationPtr, datum.adamTranslationPtr);
-            // Adam params (Jacobians)
-            std::swap(vtVecPtr, datum.vtVecPtr);
-            vtVecRows = datum.vtVecRows;
-            std::swap(j0VecPtr, datum.j0VecPtr);
-            j0VecRows = datum.j0VecRows;
-            std::swap(adamFaceCoeffsExpPtr, datum.adamFaceCoeffsExpPtr);
-            adamFaceCoeffsExpRows = datum.adamFaceCoeffsExpRows;
-            #ifdef USE_EIGEN
-                // Adam/Unity params
-                std::swap(adamPose, datum.adamPose);
-                std::swap(adamTranslation, datum.adamTranslation);
-                // Adam params (Jacobians)
-                std::swap(vtVec, datum.vtVec);
-                std::swap(j0Vec, datum.j0Vec);
-                std::swap(adamFaceCoeffsExp, datum.adamFaceCoeffsExp);
-            #endif
         }
         catch (const std::exception& e)
         {
@@ -218,10 +143,7 @@ namespace op
         {
             // ID
             id = datum.id;
-            subId = datum.subId;
-            subIdMax = datum.subIdMax;
             std::swap(name, datum.name);
-            frameNumber = datum.frameNumber;
             // Input image and rendered version
             std::swap(cvInputData, datum.cvInputData);
             std::swap(inputNetData, datum.inputNetData);
@@ -248,27 +170,6 @@ namespace op
             std::swap(scaleInputToNetInputs, datum.scaleInputToNetInputs);
             std::swap(netInputSizes, datum.netInputSizes);
             std::swap(elementRendered, datum.elementRendered);
-            // 3D/Adam parameters
-            // Adam/Unity params
-            std::swap(adamPosePtr, datum.adamPosePtr);
-            adamPoseRows = datum.adamPoseRows;
-            std::swap(adamTranslationPtr, datum.adamTranslationPtr);
-            // Adam params (Jacobians)
-            std::swap(vtVecPtr, datum.vtVecPtr);
-            vtVecRows = datum.vtVecRows;
-            std::swap(j0VecPtr, datum.j0VecPtr);
-            j0VecRows = datum.j0VecRows;
-            std::swap(adamFaceCoeffsExpPtr, datum.adamFaceCoeffsExpPtr);
-            adamFaceCoeffsExpRows = datum.adamFaceCoeffsExpRows;
-            #ifdef USE_EIGEN
-                // Adam/Unity params
-                std::swap(adamPose, datum.adamPose);
-                std::swap(adamTranslation, datum.adamTranslation);
-                // Adam params (Jacobians)
-                std::swap(vtVec, datum.vtVec);
-                std::swap(j0Vec, datum.j0Vec);
-                std::swap(adamFaceCoeffsExp, datum.adamFaceCoeffsExp);
-            #endif
             // Return
             return *this;
         }
@@ -291,10 +192,7 @@ namespace op
             Datum datum;
             // ID
             datum.id = id;
-            datum.subId = subId;
-            datum.subIdMax = subIdMax;
             datum.name = name;
-            datum.frameNumber = frameNumber;
             // Input image and rendered version
             datum.cvInputData = cvInputData.clone();
             datum.inputNetData.resize(inputNetData.size());
@@ -328,27 +226,6 @@ namespace op
             datum.scaleInputToOutput = scaleInputToOutput;
             datum.scaleNetToOutput = scaleNetToOutput;
             datum.elementRendered = elementRendered;
-            // 3D/Adam parameters
-            // Adam/Unity params
-            datum.adamPosePtr = adamPosePtr;
-            datum.adamPoseRows = adamPoseRows;
-            datum.adamTranslationPtr = adamTranslationPtr;
-            // Adam params (Jacobians)
-            datum.vtVecPtr = vtVecPtr;
-            datum.vtVecRows = vtVecRows;
-            datum.j0VecPtr = j0VecPtr;
-            datum.j0VecRows = j0VecRows;
-            datum.adamFaceCoeffsExpPtr = adamFaceCoeffsExpPtr;
-            datum.adamFaceCoeffsExpRows = adamFaceCoeffsExpRows;
-            #ifdef USE_EIGEN
-                // Adam/Unity params
-                datum.adamPose = adamPose;
-                datum.adamTranslation = adamTranslation;
-                // Adam params (Jacobians)
-                datum.vtVec = vtVec;
-                datum.j0Vec = j0Vec;
-                datum.adamFaceCoeffsExp = adamFaceCoeffsExp;
-            #endif
             // Return
             return std::move(datum);
         }

@@ -16,6 +16,9 @@
 #include <openpose/utilities/standard.hpp>
 #include <openpose/net/netCaffe.hpp>
 
+#include <boost/shared_ptr.hpp>
+#include <iomanip>
+
 namespace op
 {
     std::mutex sMutexNetCaffe;
@@ -71,7 +74,7 @@ namespace op
                         {
                             caffe::Caffe::set_mode(caffe::Caffe::GPU);
                             std::vector<int> devices;
-                            const int maxNumberGpu = OpenCL::getTotalGPU();
+                            const int maxNumberGpu = op::OpenCL::getTotalGPU();
                             for (auto i = 0; i < maxNumberGpu; i++)
                                 devices.emplace_back(i);
                             caffe::Caffe::SetDevices(devices);
@@ -144,21 +147,15 @@ namespace op
                     upImpl->upCaffeNet.reset(new caffe::Net<float>{upImpl->mCaffeProto, caffe::TEST,
                                              caffe::Caffe::GetDefaultDevice()});
                     upImpl->upCaffeNet->CopyTrainedLayersFrom(upImpl->mCaffeTrainedModel);
-                    OpenCL::getInstance(upImpl->mGpuId, CL_DEVICE_TYPE_GPU, true);
+                    op::OpenCL::getInstance(upImpl->mGpuId, CL_DEVICE_TYPE_GPU, true);
                 #else
                     #ifdef USE_CUDA
                         caffe::Caffe::set_mode(caffe::Caffe::GPU);
                         caffe::Caffe::SetDevice(upImpl->mGpuId);
-                        upImpl->upCaffeNet.reset(new caffe::Net<float>{upImpl->mCaffeProto, caffe::TEST});
                     #else
                         caffe::Caffe::set_mode(caffe::Caffe::CPU);
-                        #ifdef _WIN32
-                            upImpl->upCaffeNet.reset(new caffe::Net<float>{upImpl->mCaffeProto, caffe::TEST,
-                                                                           caffe::Caffe::GetCPUDevice()});
-                        #else
-                            upImpl->upCaffeNet.reset(new caffe::Net<float>{upImpl->mCaffeProto, caffe::TEST});
-                        #endif
                     #endif
+                    upImpl->upCaffeNet.reset(new caffe::Net<float>{upImpl->mCaffeProto, caffe::TEST});
                     upImpl->upCaffeNet->CopyTrainedLayersFrom(upImpl->mCaffeTrainedModel);
                     #ifdef USE_CUDA
                         cudaCheck(__LINE__, __FUNCTION__, __FILE__);
@@ -191,6 +188,7 @@ namespace op
                 if (inputData.getNumberDimensions() != 4 || inputData.getSize(1) != 3)
                     error("The Array inputData must have 4 dimensions: [batch size, 3 (RGB), height, width].",
                           __LINE__, __FUNCTION__, __FILE__);
+                
                 // Reshape Caffe net if required
                 if (!vectorsAreEqual(upImpl->mNetInputSize4D, inputData.getSize()))
                 {
@@ -205,15 +203,16 @@ namespace op
                 #elif defined USE_OPENCL
                     auto* gpuImagePtr = upImpl->upCaffeNet->blobs().at(0)->mutable_gpu_data();
                     cl::Buffer imageBuffer = cl::Buffer((cl_mem)gpuImagePtr, true);
-                    OpenCL::getInstance(upImpl->mGpuId)->getQueue().enqueueWriteBuffer(imageBuffer, true, 0,
-                                                                                       inputData.getVolume() * sizeof(float),
-                                                                                       inputData.getConstPtr());
+                    op::OpenCL::getInstance(upImpl->mGpuId)->getQueue().enqueueWriteBuffer(imageBuffer, true, 0,
+                                                                                           inputData.getVolume() * sizeof(float),
+                                                                                           inputData.getConstPtr());
                 #else
                     auto* cpuImagePtr = upImpl->upCaffeNet->blobs().at(0)->mutable_cpu_data();
                     std::copy(inputData.getConstPtr(), inputData.getConstPtr() + inputData.getVolume(), cpuImagePtr);
                 #endif
                 // Perform deep network forward pass
                 upImpl->upCaffeNet->ForwardFrom(0);
+
                 // Cuda checks
                 #ifdef USE_CUDA
                     cudaCheck(__LINE__, __FUNCTION__, __FILE__);
@@ -232,7 +231,7 @@ namespace op
     {
         try
         {
-            #ifdef USE_CAFFE
+            #ifdef USE_CAFFE 
                 return upImpl->spOutputBlob;
             #else
                 return nullptr;

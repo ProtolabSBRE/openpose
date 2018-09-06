@@ -2,7 +2,7 @@
     #include <caffe/blob.hpp>
 #endif
 #include <openpose/gpu/cuda.hpp>
-#include <openpose/net/netCaffe.hpp>
+#include <openpose/net/netRT.hpp>
 #include <openpose/net/nmsCaffe.hpp>
 #include <openpose/net/resizeAndMergeCaffe.hpp>
 #include <openpose/pose/bodyPartConnectorCaffe.hpp>
@@ -24,7 +24,7 @@ namespace op
             const std::string mModelFolder;
             const bool mEnableGoogleLogging;
             // General parameters
-            std::vector<std::shared_ptr<NetCaffe>> spCaffeNets;
+            std::vector<std::shared_ptr<NetRT>> spCaffeNets;
             std::shared_ptr<ResizeAndMergeCaffe<float>> spResizeAndMergeCaffe;
             std::shared_ptr<NmsCaffe<float>> spNmsCaffe;
             std::shared_ptr<BodyPartConnectorCaffe<float>> spBodyPartConnectorCaffe;
@@ -102,7 +102,7 @@ namespace op
             }
         }
 
-        void addCaffeNetOnThread(std::vector<std::shared_ptr<NetCaffe>>& netCaffe,
+        void addCaffeNetOnThread(std::vector<std::shared_ptr<NetRT>>& netCaffe,
                                  std::vector<boost::shared_ptr<caffe::Blob<float>>>& caffeNetOutputBlob,
                                  const PoseModel poseModel, const int gpuId,
                                  const std::string& modelFolder, const bool enableGoogleLogging)
@@ -111,9 +111,8 @@ namespace op
             {
                 // Add Caffe Net
                 netCaffe.emplace_back(
-                    std::make_shared<NetCaffe>(modelFolder + getPoseProtoTxt(poseModel),
-                                               modelFolder + getPoseTrainedModel(poseModel),
-                                               gpuId, enableGoogleLogging)
+                    std::make_shared<NetRT>(modelFolder + "tensorrt/rt_model.gie",
+                                            gpuId, enableGoogleLogging)
                 );
                 // Initializing them on the thread
                 netCaffe.back()->initializationOnThread();
@@ -137,7 +136,7 @@ namespace op
                                            const int gpuId, const std::vector<HeatMapType>& heatMapTypes,
                                            const ScaleMode heatMapScale, const bool addPartCandidates,
                                            const bool enableGoogleLogging) :
-        PoseExtractorNet{poseModel, heatMapTypes, heatMapScale, addPartCandidates}
+        PoseExtractor{poseModel, heatMapTypes, heatMapScale, addPartCandidates}
         #ifdef USE_CAFFE
         , upImpl{new ImplPoseExtractorCaffe{poseModel, gpuId, modelFolder, enableGoogleLogging}}
         #endif
@@ -261,18 +260,8 @@ namespace op
                     upImpl->spResizeAndMergeCaffe->Forward_cpu(caffeNetOutputBlobs, {upImpl->spHeatMapsBlob.get()}); // ~20ms
                 #endif
 
-                // Get scale net to output (i.e. image input)
-                // Note: In order to resize to input size, (un)comment the following lines
-                const auto scaleProducerToNetInput = resizeGetScaleFactor(inputDataSize, mNetOutputSize);
-                const Point<int> netSize{intRound(scaleProducerToNetInput*inputDataSize.x),
-                                         intRound(scaleProducerToNetInput*inputDataSize.y)};
-                mScaleNetToOutput = {(float)resizeGetScaleFactor(netSize, inputDataSize)};
-                // mScaleNetToOutput = 1.f;
-
                 // 3. Get peaks by Non-Maximum Suppression
                 upImpl->spNmsCaffe->setThreshold((float)get(PoseProperty::NMSThreshold));
-                const auto nmsOffset = float(0.5/double(mScaleNetToOutput));
-                upImpl->spNmsCaffe->setOffset(Point<float>{nmsOffset, nmsOffset});
                 #ifdef USE_CUDA
                     //upImpl->spNmsCaffe->Forward_cpu({upImpl->spHeatMapsBlob.get()}, {upImpl->spPeaksBlob.get()}); // ~ 7ms
                     upImpl->spNmsCaffe->Forward_gpu({upImpl->spHeatMapsBlob.get()}, {upImpl->spPeaksBlob.get()});// ~2ms
@@ -283,6 +272,14 @@ namespace op
                 #else
                     upImpl->spNmsCaffe->Forward_cpu({upImpl->spHeatMapsBlob.get()}, {upImpl->spPeaksBlob.get()}); // ~ 7ms
                 #endif
+
+                // Get scale net to output (i.e. image input)
+                // Note: In order to resize to input size, (un)comment the following lines
+                const auto scaleProducerToNetInput = resizeGetScaleFactor(inputDataSize, mNetOutputSize);
+                const Point<int> netSize{intRound(scaleProducerToNetInput*inputDataSize.x),
+                                         intRound(scaleProducerToNetInput*inputDataSize.y)};
+                mScaleNetToOutput = {(float)resizeGetScaleFactor(netSize, inputDataSize)};
+                // mScaleNetToOutput = 1.f;
 
                 // 4. Connecting body parts
                 // Get scale net to output (i.e. image input)

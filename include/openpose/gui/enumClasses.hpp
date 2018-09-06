@@ -10,10 +10,9 @@ namespace op
     enum class DisplayMode : unsigned short
     {
         NoDisplay,  /**< No display. */
-        DisplayAll, /**< All (2-D and 3-D/Adam) displays */
+        DisplayAll, /**< All (2-D and 3-D) displays */
         Display2D,  /**< Only 2-D display. */
-        Display3D,  /**< Only 3-D display. */
-        DisplayAdam /**< Only Adam display. */
+        Display3D   /**< Only 3-D display. */
     };
 
     /**

@@ -4,10 +4,9 @@
 
 namespace op
 {
-    void wrapperConfigureSecurityChecks(WrapperStructPose& wrapperStructPose,
+    void wrapperConfigureSecurityChecks(const WrapperStructPose& wrapperStructPose,
                                         const WrapperStructFace& wrapperStructFace,
                                         const WrapperStructHand& wrapperStructHand,
-                                        const WrapperStructExtra& wrapperStructExtra,
                                         const WrapperStructInput& wrapperStructInput,
                                         const WrapperStructOutput& wrapperStructOutput,
                                         const bool renderOutput,
@@ -60,19 +59,8 @@ namespace op
                     !wrapperStructOutput.writeImages.empty() || !wrapperStructOutput.writeVideo.empty()
                         || !wrapperStructOutput.writeKeypoint.empty() || !wrapperStructOutput.writeJson.empty()
                         || !wrapperStructOutput.writeCocoJson.empty() || !wrapperStructOutput.writeHeatMaps.empty()
-                        || !wrapperStructOutput.writeCocoFootJson.empty()
-                );
-                const auto savingCvOutput = (
-                    !wrapperStructOutput.writeImages.empty() || !wrapperStructOutput.writeVideo.empty()
                 );
                 const bool guiEnabled = (wrapperStructOutput.displayMode != DisplayMode::NoDisplay);
-                if (!guiEnabled && !savingCvOutput && renderOutput)
-                {
-                    const auto message = "GUI is not enabled and you are not saving the output frames. You should then"
-                                         " disable rendering for a faster code. I.e., add `--render_pose 0`."
-                                         + additionalMessage;
-                    error(message, __LINE__, __FUNCTION__, __FILE__);
-                }
                 if (!guiEnabled && !savingSomething)
                 {
                     const auto message = "No output is selected (`--display 0`) and no results are generated (no"
@@ -117,7 +105,7 @@ namespace op
                           __LINE__, __FUNCTION__, __FILE__);
             }
             // If 3-D module, 1 person is the maximum
-            if (wrapperStructExtra.reconstruct3d && wrapperStructPose.numberPeopleMax != 1)
+            if (wrapperStructPose.reconstruct3d && wrapperStructPose.numberPeopleMax != 1)
             {
                 error("Set `--number_people_max 1` when using `--3d`. The 3-D reconstruction demo assumes there is"
                       " at most 1 person on each image.", __LINE__, __FUNCTION__, __FILE__);
@@ -145,21 +133,16 @@ namespace op
                           " `CPU_ONLY` version.", __LINE__, __FUNCTION__, __FILE__);
             #endif
             // Net input resolution cannot be reshaped for Caffe OpenCL and MKL versions, only for CUDA version
-            #if defined USE_MKL || defined USE_OPENCL
+            #if defined USE_MKL || defined USE_CPU_ONLY
                 // If image_dir and netInputSize == -1 --> error
                 if ((wrapperStructInput.producerSharedPtr == nullptr
                      || wrapperStructInput.producerSharedPtr->getType() == ProducerType::ImageDirectory)
                     // If netInputSize is -1
                     && (wrapperStructPose.netInputSize.x == -1 || wrapperStructPose.netInputSize.y == -1))
-                {
-                    wrapperStructPose.netInputSize.x = 656;
-                    wrapperStructPose.netInputSize.y = 368;
-                    log("The default dynamic `--net_resolution` is not supported in MKL (MKL CPU Caffe) and OpenCL"
-                        " Caffe versions. Please, use a static `net_resolution` (recommended"
-                        " `--net_resolution 656x368`) or use the Caffe CUDA master branch when processing images"
-                        " and/or when using your custom image reader. OpenPose has automatically set the resolution"
-                        " to 656x368.", Priority::High);
-                }
+                    error("Dynamic `--net_resolution` is not supported in MKL (CPU) and OpenCL Caffe versions. Please"
+                          " remove `-1` from `net_resolution` or use the Caffe master branch when processing images"
+                          " and when using your custom image reader.",
+                          __LINE__, __FUNCTION__, __FILE__);
             #endif
 
             log("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);

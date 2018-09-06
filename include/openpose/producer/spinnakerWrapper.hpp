@@ -14,20 +14,14 @@ namespace op
     public:
         /**
          * Constructor of SpinnakerWrapper. It opens all the available FLIR cameras
-         * cameraIndex = -1 means that all cameras are taken
          */
-        explicit SpinnakerWrapper(const std::string& cameraParameterPath, const Point<int>& cameraResolution,
-                                  const bool undistortImage, const int cameraIndex = -1);
+        explicit SpinnakerWrapper(const std::string& cameraParameterPath, const Point<int>& cameraResolution);
 
         ~SpinnakerWrapper();
 
         std::vector<cv::Mat> getRawFrames();
 
         std::vector<cv::Mat> getCameraMatrices() const;
-
-        std::vector<cv::Mat> getCameraExtrinsics() const;
-
-        std::vector<cv::Mat> getCameraIntrinsics() const;
 
         Point<int> getResolution() const;
 

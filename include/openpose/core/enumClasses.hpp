@@ -27,14 +27,6 @@ namespace op
         Cpu,
         Gpu,
     };
-
-    enum class ElementToRender : unsigned char
-    {
-        Skeleton,
-        Background,
-        AddKeypoints,
-        AddPAFs,
-    };
 }
 
 #endif // OPENPOSE_CORE_ENUM_CLASSES_HPP

@@ -4,6 +4,7 @@
 #include <openpose/core/common.hpp>
 #include <openpose/core/renderer.hpp>
 #include <openpose/pose/enumClasses.hpp>
+#include <openpose/pose/poseExtractor.hpp>
 #include <openpose/pose/poseParametersRender.hpp>
 #include <openpose/pose/poseRenderer.hpp>
 

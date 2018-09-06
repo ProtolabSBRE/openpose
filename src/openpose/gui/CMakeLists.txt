@@ -2,7 +2,6 @@ set(SOURCES_OP_GUI
     defineTemplates.cpp
     frameDisplayer.cpp
     gui.cpp
-    guiAdam.cpp
     gui3D.cpp
     guiInfoAdder.cpp
 )
@@ -14,7 +13,7 @@ set(SOURCES_OP_GUI_WITH_CP ${SOURCES_OP_GUI_WITH_CP} PARENT_SCOPE)
 set(SOURCES_OP_FILESTREAM_WITH_CP ${SOURCES_OP_FILESTREAM_WITH_CP} PARENT_SCOPE)
 set(SOURCES_OPENPOSE ${SOURCES_OPENPOSE} ${SOURCES_OP_GUI_WITH_CP} PARENT_SCOPE)
 
-if (UNIX OR APPLE)
+if (UNIX AND NOT APPLE)
   add_library(openpose_gui ${SOURCES_OP_GUI})
   target_link_libraries(openpose_gui openpose_pose ${OpenCV_LIBS})
 
@@ -23,5 +22,5 @@ if (UNIX OR APPLE)
       RUNTIME DESTINATION bin
       LIBRARY DESTINATION lib
       ARCHIVE DESTINATION lib/openpose)
-endif (UNIX OR APPLE)
+endif (UNIX AND NOT APPLE)
 

@@ -56,39 +56,27 @@ namespace op
             // If output queue running -> normal operation
             else
             {
-                // Don't work until next queue is not full
-                // This reduces latency to half
-                if (!spTQueueOut->isFull())
+                // Pop TDatums
+                TDatums tDatums;
+                bool workersAreRunning = spTQueueIn->tryPop(tDatums);
+                // Check queue not stopped
+                if (!workersAreRunning)
+                    workersAreRunning = spTQueueIn->isRunning();
+                // Process TDatums
+                workersAreRunning = this->workTWorkers(tDatums, workersAreRunning);
+                // Push/emplace tDatums if successfully processed
+                if (workersAreRunning)
                 {
-                    // Pop TDatums
-                    if (spTQueueIn->empty())
-                        std::this_thread::sleep_for(std::chrono::microseconds{100});
-                    TDatums tDatums;
-                    bool workersAreRunning = spTQueueIn->tryPop(tDatums);
-                    // Check queue not stopped
-                    if (!workersAreRunning)
-                        workersAreRunning = spTQueueIn->isRunning();
-                    // Process TDatums
-                    workersAreRunning = this->workTWorkers(tDatums, workersAreRunning);
-                    // Push/emplace tDatums if successfully processed
-                    if (workersAreRunning)
-                    {
-                        if (tDatums != nullptr)
-                            spTQueueOut->waitAndEmplace(tDatums);
-                    }
-                    // Close both queues otherwise
-                    else
-                    {
-                        spTQueueIn->stop();
-                        spTQueueOut->stopPusher();
-                    }
-                    return workersAreRunning;
+                    if (tDatums != nullptr)
+                        spTQueueOut->waitAndEmplace(tDatums);
                 }
+                // Close both queues otherwise
                 else
                 {
-                    std::this_thread::sleep_for(std::chrono::microseconds{100});
-                    return true;
+                    spTQueueIn->stop();
+                    spTQueueOut->stopPusher();
                 }
+                return workersAreRunning;
             }
         }
         catch (const std::exception& e)

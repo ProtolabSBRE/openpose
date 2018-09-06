@@ -5,8 +5,8 @@
 
 namespace op
 {
-    const std::string errorMessage = "The Array<float> is not a RGB image or 3-channel keypoint array. This function"
-                                     " is only for array of dimension: [sizeA x sizeB x 3].";
+    const std::string errorMessage = "The Array<float> is not a RGB image. This function is only for array of"
+                                     " dimension: [sizeA x sizeB x 3].";
 
     float getDistance(const Array<float>& keypoints, const int person, const int elementA, const int elementB)
     {
@@ -59,29 +59,7 @@ namespace op
     {
         try
         {
-            if (!keypoints.empty() && scale != 1.f)
-            {
-                // Error check
-                if (keypoints.getSize(2) != 3 && keypoints.getSize(2) != 4)
-                    error("The Array<float> is not a (x,y,score) or (x,y,z,score) format array. This"
-                          " function is only for those 2 dimensions: [sizeA x sizeB x 3or4].",
-                          __LINE__, __FUNCTION__, __FILE__);
-                // Get #people and #parts
-                const auto numberPeople = keypoints.getSize(0);
-                const auto numberParts = keypoints.getSize(1);
-                const auto xyzChannels = keypoints.getSize(2);
-                // For each person
-                for (auto person = 0 ; person < numberPeople ; person++)
-                {
-                    // For each body part
-                    for (auto part = 0 ; part < numberParts ; part++)
-                    {
-                        const auto finalIndex = xyzChannels*(person*numberParts + part);
-                        for (auto xyz = 0 ; xyz < xyzChannels-1 ; xyz++)
-                            keypoints[finalIndex+xyz] *= scale;
-                    }
-                }
-            }
+            scaleKeypoints(keypoints, scale, scale);
         }
         catch (const std::exception& e)
         {
@@ -89,14 +67,14 @@ namespace op
         }
     }
 
-    void scaleKeypoints2d(Array<float>& keypoints, const float scaleX, const float scaleY)
+    void scaleKeypoints(Array<float>& keypoints, const float scaleX, const float scaleY)
     {
         try
         {
-            if (!keypoints.empty() && scaleX != 1.f && scaleY != 1.f)
+            if (scaleX != 1. && scaleY != 1.)
             {
                 // Error check
-                if (keypoints.getSize(2) != 3)
+                if (!keypoints.empty() && keypoints.getSize(2) != 3)
                     error(errorMessage, __LINE__, __FUNCTION__, __FILE__);
                 // Get #people and #parts
                 const auto numberPeople = keypoints.getSize(0);
@@ -120,15 +98,15 @@ namespace op
         }
     }
 
-    void scaleKeypoints2d(Array<float>& keypoints, const float scaleX, const float scaleY, const float offsetX,
-                          const float offsetY)
+    void scaleKeypoints(Array<float>& keypoints, const float scaleX, const float scaleY, const float offsetX,
+                        const float offsetY)
     {
         try
         {
-            if (!keypoints.empty() && scaleX != 1.f && scaleY != 1.f)
+            if (scaleX != 1. && scaleY != 1.)
             {
                 // Error check
-                if (keypoints.getSize(2) != 3)
+                if (!keypoints.empty() && keypoints.getSize(2) != 3)
                     error(errorMessage, __LINE__, __FUNCTION__, __FILE__);
                 // Get #people and #parts
                 const auto numberPeople = keypoints.getSize(0);
@@ -165,14 +143,17 @@ namespace op
                 auto frame = frameArray.getCvMat();
 
                 // Security check
-                if (frame.channels() != 3)
+                if (frame.dims != 3 || frame.size[0] != 3)
                     error(errorMessage, __LINE__, __FUNCTION__, __FILE__);
 
                 // Get frame channels
-                const auto width = frame.size[1];
-                const auto height = frame.size[0];
+                const auto width = frame.size[2];
+                const auto height = frame.size[1];
                 const auto area = width * height;
-                cv::Mat frameBGR(height, width, CV_32FC3, frame.data);
+                const auto channelOffset = area * sizeof(float) / sizeof(uchar);
+                cv::Mat frameB(height, width, CV_32FC1, &frame.data[0]);
+                cv::Mat frameG(height, width, CV_32FC1, &frame.data[channelOffset]);
+                cv::Mat frameR(height, width, CV_32FC1, &frame.data[2 * channelOffset]);
 
                 // Parameters
                 const auto lineType = 8;
@@ -208,14 +189,14 @@ namespace op
                                 const auto thicknessLineScaled = thicknessLine
                                                                * poseScales[pairs[pair+1] % numberScales];
                                 const auto colorIndex = pairs[pair+1]*3; // Before: colorIndex = pair/2*3;
-                                const cv::Scalar color{
-                                    colors[(colorIndex+2) % numberColors],
-                                    colors[(colorIndex+1) % numberColors],
-                                    colors[colorIndex % numberColors]
-                                };
+                                const cv::Scalar color{colors[colorIndex % numberColors],
+                                                       colors[(colorIndex+1) % numberColors],
+                                                       colors[(colorIndex+2) % numberColors]};
                                 const cv::Point keypoint1{intRound(keypoints[index1]), intRound(keypoints[index1+1])};
                                 const cv::Point keypoint2{intRound(keypoints[index2]), intRound(keypoints[index2+1])};
-                                cv::line(frameBGR, keypoint1, keypoint2, color, thicknessLineScaled, lineType, shift);
+                                cv::line(frameR, keypoint1, keypoint2, color[0], thicknessLineScaled, lineType, shift);
+                                cv::line(frameG, keypoint1, keypoint2, color[1], thicknessLineScaled, lineType, shift);
+                                cv::line(frameB, keypoint1, keypoint2, color[2], thicknessLineScaled, lineType, shift);
                             }
                         }
 
@@ -228,14 +209,16 @@ namespace op
                                 const auto radiusScaled = radius * poseScales[part % numberScales];
                                 const auto thicknessCircleScaled = thicknessCircle * poseScales[part % numberScales];
                                 const auto colorIndex = part*3;
-                                const cv::Scalar color{
-                                    colors[(colorIndex+2) % numberColors],
-                                    colors[(colorIndex+1) % numberColors],
-                                    colors[colorIndex % numberColors]
-                                };
+                                const cv::Scalar color{colors[colorIndex % numberColors],
+                                                       colors[(colorIndex+1) % numberColors],
+                                                       colors[(colorIndex+2) % numberColors]};
                                 const cv::Point center{intRound(keypoints[faceIndex]),
                                                        intRound(keypoints[faceIndex+1])};
-                                cv::circle(frameBGR, center, radiusScaled, color, thicknessCircleScaled, lineType,
+                                cv::circle(frameR, center, radiusScaled, color[0], thicknessCircleScaled, lineType,
+                                           shift);
+                                cv::circle(frameG, center, radiusScaled, color[1], thicknessCircleScaled, lineType,
+                                           shift);
+                                cv::circle(frameB, center, radiusScaled, color[2], thicknessCircleScaled, lineType,
                                            shift);
                             }
                         }

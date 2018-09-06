@@ -19,7 +19,7 @@ namespace op
 
         void initializationOnThread();
 
-        void renderHandInherited(Array<float>& outputData, const std::array<Array<float>, 2>& handKeypoints);
+        void renderHand(Array<float>& outputData, const std::array<Array<float>, 2>& handKeypoints);
 
     private:
         float* pGpuHand; // GPU aux memory

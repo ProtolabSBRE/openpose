@@ -10,11 +10,7 @@ namespace op
     public:
         virtual void initializationOnThread(){};
 
-        void renderFace(Array<float>& outputData, const Array<float>& faceKeypoints,
-                        const float scaleInputToOutput);
-
-    private:
-        virtual void renderFaceInherited(Array<float>& outputData, const Array<float>& faceKeypoints) = 0;
+        virtual void renderFace(Array<float>& outputData, const Array<float>& faceKeypoints) = 0;
     };
 }
 

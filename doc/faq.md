@@ -4,14 +4,13 @@ OpenPose - Frequently Asked Question (FAQ)
 ## Contents
 1. [FAQ](#faq)
     1. [Out of Memory Error](#out-of-memory-error)
-    2. [Speed Up, Memory Reduction, and Benchmark](#speed-up-memory-reduction-and-benchmark)
+    2. [Speed Up and Benchmark](#speed-up-and-benchmark)
     3. [Estimating FPS without Display](#estimating-fps-without-display)
     4. [Webcam Slower than Images](#webcam-slower-than-images)
-    5. [Video/Webcam Not Working](#videowebcam-not-working)
+    5. [Vide/Webcam Not Working](#video-webcam-not-working)
     6. [Cannot Find OpenPose.dll Error](#cannot-find-openpose.dll-error-windows)
     7. [Free Invalid Pointer Error](#free-invalid-pointer-error)
     8. [Source Directory does not Contain CMakeLists.txt (Windows)](#source-directory-does-not-contain-cmakelists.txt-windows)
-    9. [How Should I Link my IP Camera?](#how-should-i-link-my-ip-camera)
 
 
 
@@ -21,21 +20,20 @@ OpenPose - Frequently Asked Question (FAQ)
 ### Out of Memory Error
 **Q: Out of memory error** - I get an error similar to: `Check failed: error == cudaSuccess (2 vs. 0)  out of memory`.
 
-**A**: Most probably cuDNN is not installed/enabled, the default Caffe model uses >12 GB of GPU memory, cuDNN reduces it to ~2 GB for BODY_25 and ~1.5 GB for COCO.
+**A**: Most probably cuDNN is not installed/enabled, the default Caffe model uses >12 GB of GPU memory, cuDNN reduces it to ~1.5 GB.
 
 
 
-### Speed Up, Memory Reduction, and Benchmark
+### Speed Up and Benchmark
 **Q: Low speed** - OpenPose is quite slow, is it normal? How can I speed it up?
 
 **A**: Check the [OpenPose Benchmark](https://docs.google.com/spreadsheets/d/1-DynFGvoScvfWDA1P4jDInCkbD4lg0IKOYbXgEq0sK0/edit#gid=0) to discover the approximate speed of your graphics card. Some speed tips:
 
     1. Use cuDNN 5.1 (cuDNN 6 is ~10% slower).
-    2. Reduce the `--net_resolution` (e.g. to 320x176) (lower accuracy). Note: For maximum accuracy, follow [doc/quick_start.md#maximum-accuracy-configuration](./quick_start.md#maximum-accuracy-configuration).
+    2. Reduce the `--net_resolution` (e.g. to 320x176) (lower accuracy).
     3. For face, reduce the `--face_net_resolution`. The resolution 320x320 usually works pretty decently.
     4. Use the `MPI_4_layers` model (lower accuracy and lower number of parts).
     5. Change GPU rendering by CPU rendering to get approximately +0.5 FPS (`--render_pose 1`).
-    6. Points 2-4 will also help reducing GPU memory (or RAM memory for CPU version).
 
 
 
@@ -82,10 +80,3 @@ Note: OpenPose library is not an executable, but a library. So instead clicking 
 **Q: I am getting an error of the type: `The source directory {path to file} does not contain a CMakeLists.txt file.`.**
 
 **A**: You might not have writing access to that folder. If you are in Windows, you should not try to install it in `Program Files`.
-
-
-
-### How Should I Link my IP Camera?
-**Q: How Should I Link my IP Camera with http protocol?.**
-
-**A**: Usually with `http://CamIP:PORT_NO./video?x.mjpeg`.

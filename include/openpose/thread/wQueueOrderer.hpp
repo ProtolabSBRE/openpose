@@ -24,7 +24,6 @@ namespace op
         const unsigned int mMaxBufferSize;
         bool mStopWhenEmpty;
         unsigned long long mNextExpectedId;
-        unsigned long long mNextExpectedSubId;
         std::priority_queue<TDatums, std::vector<TDatums>, PointerContainerGreater<TDatums>> mPriorityQueueBuffer;
 
         DELETE_COPY(WQueueOrderer);
@@ -44,8 +43,7 @@ namespace op
     WQueueOrderer<TDatums>::WQueueOrderer(const unsigned int maxBufferSize) :
         mMaxBufferSize{maxBufferSize},
         mStopWhenEmpty{false},
-        mNextExpectedId{0},
-        mNextExpectedSubId{0}
+        mNextExpectedId{0}
     {
     }
 
@@ -68,22 +66,8 @@ namespace op
                 // T* to T
                 auto& tDatumsNoPtr = *tDatums;
                 // tDatums is the next expected, update counter
-                if (tDatumsNoPtr[0].id == mNextExpectedId && tDatumsNoPtr[0].subId == mNextExpectedSubId)
-                {
-                    // If single-view
-                    if (tDatumsNoPtr[0].subIdMax == 0)
-                        mNextExpectedId++;
-                    // If muilti-view system
-                    else
-                    {
-                        mNextExpectedSubId++;
-                        if (mNextExpectedSubId > tDatumsNoPtr[0].subIdMax)
-                        {
-                            mNextExpectedSubId = 0;
-                            mNextExpectedId++;
-                        }
-                    }
-                }
+                if (tDatumsNoPtr[0].id == mNextExpectedId)
+                    mNextExpectedId++;
                 // Else push it to our buffered queue
                 else
                 {
@@ -102,10 +86,7 @@ namespace op
             if (!checkNoNullNorEmpty(tDatums))
             {
                 // Retrieve frame if next is desired frame or if we want to stop this worker
-                if (!mPriorityQueueBuffer.empty()
-                    && (mStopWhenEmpty ||
-                        ((*mPriorityQueueBuffer.top())[0].id == mNextExpectedId
-                          && (*mPriorityQueueBuffer.top())[0].subId == mNextExpectedSubId)))
+                if (!mPriorityQueueBuffer.empty()   &&   ((*mPriorityQueueBuffer.top())[0].id == mNextExpectedId || mStopWhenEmpty))
                 {
                     tDatums = { mPriorityQueueBuffer.top() };
                     mPriorityQueueBuffer.pop();
@@ -115,21 +96,9 @@ namespace op
             if (checkNoNullNorEmpty(tDatums))
             {
                 const auto& tDatumsNoPtr = *tDatums;
-                // If single-view
-                if (tDatumsNoPtr[0].subIdMax == 0)
-                    mNextExpectedId = tDatumsNoPtr[0].id + 1;
-                // If muilti-view system
-                else
-                {
-                    mNextExpectedSubId = tDatumsNoPtr[0].subId + 1;
-                    if (mNextExpectedSubId > tDatumsNoPtr[0].subIdMax)
-                    {
-                        mNextExpectedSubId = 0;
-                        mNextExpectedId = tDatumsNoPtr[0].id + 1;
-                    }
-                }
+                mNextExpectedId = tDatumsNoPtr[0].id + 1;
             }
-            // Sleep if no new tDatums to either pop or push
+            // Sleep if no new tDatums to either pop
             if (!checkNoNullNorEmpty(tDatums) && mPriorityQueueBuffer.size() < mMaxBufferSize / 2u)
                 std::this_thread::sleep_for(std::chrono::milliseconds{1});
             // If TDatum popped and/or pushed

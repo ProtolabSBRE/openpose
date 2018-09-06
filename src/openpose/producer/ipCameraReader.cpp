@@ -25,32 +25,6 @@ namespace op
         }
     }
 
-    std::vector<cv::Mat> IpCameraReader::getCameraExtrinsics()
-    {
-        try
-        {
-            return {};
-        }
-        catch (const std::exception& e)
-        {
-            error(e.what(), __LINE__, __FUNCTION__, __FILE__);
-            return {};
-        }
-    }
-
-    std::vector<cv::Mat> IpCameraReader::getCameraIntrinsics()
-    {
-        try
-        {
-            return {};
-        }
-        catch (const std::exception& e)
-        {
-            error(e.what(), __LINE__, __FUNCTION__, __FILE__);
-            return {};
-        }
-    }
-
     std::string IpCameraReader::getNextFrameName()
     {
         try

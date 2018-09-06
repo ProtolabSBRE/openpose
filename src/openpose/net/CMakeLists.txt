@@ -4,6 +4,7 @@ set(SOURCES_OP_NET
     maximumBase.cu
     maximumCaffe.cpp
     netCaffe.cpp
+    netRT.cpp
     nmsBase.cpp
     nmsBase.cu
     nmsBaseCL.cpp
@@ -18,16 +19,16 @@ prepend(SOURCES_OP_NET_WITH_CP ${CMAKE_CURRENT_SOURCE_DIR} ${SOURCES_OP_NET})
 set(SOURCES_OP_NET_WITH_CP ${SOURCES_OP_NET_WITH_CP} PARENT_SCOPE)
 set(SOURCES_OPENPOSE ${SOURCES_OPENPOSE} ${SOURCES_OP_NET_WITH_CP} PARENT_SCOPE)
 
-if (UNIX OR APPLE)
+if (UNIX AND NOT APPLE)
   if (${GPU_MODE} MATCHES "CUDA")
     cuda_add_library(openpose_net ${SOURCES_OP_NET})
-  else ()
+  else()
     add_library(openpose_net ${SOURCES_OP_NET})
   endif ()
 
   add_library(caffe SHARED IMPORTED)
-  set_property(TARGET caffe PROPERTY IMPORTED_LOCATION ${Caffe_LIBS}) 
-  target_link_libraries(openpose_net caffe ${MKL_LIBS} openpose_core)
+  set_property(TARGET caffe PROPERTY IMPORTED_LOCATION ${Caffe_LIBS})
+  target_link_libraries(openpose_net caffe ${MKL_LIBS})
 
   if (BUILD_CAFFE)
     add_dependencies(openpose_net openpose_caffe)
@@ -38,4 +39,4 @@ if (UNIX OR APPLE)
       RUNTIME DESTINATION bin
       LIBRARY DESTINATION lib
       ARCHIVE DESTINATION lib/openpose)
-endif (UNIX OR APPLE)
+endif (UNIX AND NOT APPLE)

@@ -46,28 +46,29 @@ namespace op
         }
     }
 
-    void HandGpuRenderer::renderHandInherited(Array<float>& outputData,
-                                              const std::array<Array<float>, 2>& handKeypoints)
+    void HandGpuRenderer::renderHand(Array<float>& outputData, const std::array<Array<float>, 2>& handKeypoints)
     {
         try
         {
+            // Security checks
+            if (outputData.empty())
+                error("Empty Array<float> outputData.", __LINE__, __FUNCTION__, __FILE__);
+            if (handKeypoints[0].getSize(0) != handKeypoints[1].getSize(0))
+                error("Wrong hand format: handKeypoints.getSize(0) != handKeypoints.getSize(1).", __LINE__, __FUNCTION__, __FILE__);
             // GPU rendering
             #ifdef USE_CUDA
-                // I prefer std::round(T&) over intRound(T) for std::atomic
-                const auto elementRendered = spElementToRender->load();
+                const auto elementRendered = spElementToRender->load(); // I prefer std::round(T&) over intRound(T) for std::atomic
                 const auto numberPeople = handKeypoints[0].getSize(0);
-                const Point<int> frameSize{outputData.getSize(1), outputData.getSize(0)};
+                const Point<int> frameSize{outputData.getSize(2), outputData.getSize(1)};
                 // GPU rendering
                 if (numberPeople > 0 && elementRendered == 0)
                 {
-                    // Draw handKeypoints
                     cpuToGpuMemoryIfNotCopiedYet(outputData.getPtr(), outputData.getVolume());
+                    // Draw handKeypoints
                     const auto handArea = handKeypoints[0].getSize(1)*handKeypoints[0].getSize(2);
                     const auto handVolume = numberPeople * handArea;
-                    cudaMemcpy(pGpuHand, handKeypoints[0].getConstPtr(), handVolume * sizeof(float),
-                               cudaMemcpyHostToDevice);
-                    cudaMemcpy(pGpuHand + handVolume, handKeypoints[1].getConstPtr(),
-                               handVolume * sizeof(float), cudaMemcpyHostToDevice);
+                    cudaMemcpy(pGpuHand, handKeypoints[0].getConstPtr(), handVolume * sizeof(float), cudaMemcpyHostToDevice);
+                    cudaMemcpy(pGpuHand + handVolume, handKeypoints[1].getConstPtr(), handVolume * sizeof(float), cudaMemcpyHostToDevice);
                     renderHandKeypointsGpu(*spGpuMemory, frameSize, pGpuHand, 2 * numberPeople, mRenderThreshold);
                     // CUDA check
                     cudaCheck(__LINE__, __FUNCTION__, __FILE__);

@@ -11,7 +11,7 @@ namespace op
             const auto font = cv::FONT_HERSHEY_SIMPLEX;
             const auto ratio = imageWidth/1280.;
             // const auto fontScale = 0.75;
-            const auto fontScale = 0.8 * ratio;
+            const auto fontScale = 0.8 * std::sqrt(ratio);
             const auto fontThickness = std::max(1, intRound(2*ratio));
             const auto shadowOffset = std::max(1, intRound(2*ratio));
             int baseline = 0;
@@ -22,6 +22,46 @@ namespace op
                         cv::Size{finalPosition.width + shadowOffset, finalPosition.height + shadowOffset},
                         font, fontScale, cv::Scalar{0,0,0}, fontThickness);
             cv::putText(cvMat, textToDisplay, finalPosition, font, fontScale, color, fontThickness);
+        }
+        catch (const std::exception& e)
+        {
+            error(e.what(), __LINE__, __FUNCTION__, __FILE__);
+        }
+    }
+
+    void floatPtrToUCharCvMat(cv::Mat& uCharCvMat, const float* const floatPtrImage,
+                              const std::array<int, 3> resolutionSize)
+    {
+        try
+        {
+            // Info:
+                // float* (deep net format): C x H x W
+                // cv::Mat (OpenCV format): H x W x C
+            // Allocate cv::Mat if it was not initialized yet
+            if (uCharCvMat.empty() || uCharCvMat.rows != resolutionSize[1]
+                || uCharCvMat.cols != resolutionSize[0] || uCharCvMat.type() != CV_8UC3)
+                uCharCvMat = cv::Mat(resolutionSize[1], resolutionSize[0], CV_8UC3);
+            // Fill uCharCvMat from floatPtrImage
+            auto* uCharPtrCvMat = (unsigned char*)(uCharCvMat.data);
+            const auto offsetBetweenChannels = resolutionSize[0] * resolutionSize[1];
+            const auto stepSize = uCharCvMat.step; // step = cols * channels
+            for (auto c = 0; c < resolutionSize[2]; c++)
+            {
+                const auto offsetChannelC = c*offsetBetweenChannels;
+                for (auto y = 0; y < resolutionSize[1]; y++)
+                {
+                    const auto yOffset = y * stepSize;
+                    const auto floatPtrImageOffsetY = offsetChannelC + y*resolutionSize[0];
+                    for (auto x = 0; x < resolutionSize[0]; x++)
+                    {
+                        const auto value = uchar(
+                            fastTruncate(intRound(floatPtrImage[floatPtrImageOffsetY + x]), 0, 255)
+                        );
+                        uCharPtrCvMat[yOffset + x * resolutionSize[2] + c] = value;
+                        // *(uCharCvMat.ptr<uchar>(y, x) + c) = value; // Slower but safer and cleaner equivalent
+                    }
+                }
+            }
         }
         catch (const std::exception& e)
         {
@@ -80,7 +120,7 @@ namespace op
         try
         {
             // float* (deep net format): C x H x W
-            // cv::Mat (OpenCV format): H x W x C
+            // cv::Mat (OpenCV format): H x W x C 
             const int width = cvImage.cols;
             const int height = cvImage.rows;
             const int channels = cvImage.channels();
@@ -103,36 +143,21 @@ namespace op
                 // Empirically tested - OpenCV is more efficient normalizing a whole matrix/image (it uses AVX and
                 // other optimized instruction sets).
                 // In addition, the following if statement does not copy the pointer to a cv::Mat, just wrapps it.
-            // VGG
             if (normalize == 1)
             {
                 cv::Mat floatPtrImageCvWrapper(height, width, CV_32FC3, floatPtrImage);
                 floatPtrImageCvWrapper = floatPtrImageCvWrapper/256.f - 0.5f;
             }
-            // // ResNet
-            // else if (normalize == 2)
-            // {
-            //     const int imageArea = width * height;
-            //     const std::array<float,3> means{102.9801, 115.9465, 122.7717};
-            //     for (auto i = 0 ; i < 3 ; i++)
-            //     {
-            //         cv::Mat floatPtrImageCvWrapper(height, width, CV_32FC1, floatPtrImage + i*imageArea);
-            //         floatPtrImageCvWrapper = floatPtrImageCvWrapper - means[i];
-            //     }
-            // }
-            // DenseNet
             else if (normalize == 2)
             {
-                const auto scaleDenseNet = 0.017;
                 const int imageArea = width * height;
-                const std::array<float,3> means{103.94,116.78,123.68};
+                const std::array<float,3> means{102.9801, 115.9465, 122.7717};
                 for (auto i = 0 ; i < 3 ; i++)
                 {
                     cv::Mat floatPtrImageCvWrapper(height, width, CV_32FC1, floatPtrImage + i*imageArea);
-                    floatPtrImageCvWrapper = scaleDenseNet*(floatPtrImageCvWrapper - means[i]);
+                    floatPtrImageCvWrapper = floatPtrImageCvWrapper - means[i];
                 }
             }
-            // Unknown
             else if (normalize != 0)
                 error("Unknown normalization value (" + std::to_string(normalize) + ").",
                       __LINE__, __FUNCTION__, __FILE__);

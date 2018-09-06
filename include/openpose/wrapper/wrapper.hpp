@@ -3,7 +3,6 @@
 
 #include <openpose/core/common.hpp>
 #include <openpose/thread/headers.hpp>
-#include <openpose/wrapper/wrapperStructExtra.hpp>
 #include <openpose/wrapper/wrapperStructFace.hpp>
 #include <openpose/wrapper/wrapperStructHand.hpp>
 #include <openpose/wrapper/wrapperStructInput.hpp>
@@ -28,9 +27,8 @@ namespace op
      *           Wrapper(ThreadManagerMode::Synchronous, nullptr, workersOutput, irrelevantBoolean, true)
      */
     template<typename TDatums,
-             typename TDatumsSP = std::shared_ptr<TDatums>,
-             typename TWorker = std::shared_ptr<Worker<TDatumsSP>>,
-             typename TQueue = Queue<TDatumsSP>>
+             typename TWorker = std::shared_ptr<Worker<std::shared_ptr<TDatums>>>,
+             typename TQueue = Queue<std::shared_ptr<TDatums>>>
     class Wrapper
     {
     public:
@@ -113,8 +111,6 @@ namespace op
                        const WrapperStructFace& wrapperStructFace = WrapperStructFace{},
                        // Hand (use the default WrapperStructHand{} to disable any hand detector)
                        const WrapperStructHand& wrapperStructHand = WrapperStructHand{},
-                       // Hand (use the default WrapperStructExtra{} to disable any hand detector)
-                       const WrapperStructExtra& wrapperStructExtra = WrapperStructExtra{},
                        // Producer: set producerSharedPtr=nullptr or use default WrapperStructInput{} to disable input
                        const WrapperStructInput& wrapperStructInput = WrapperStructInput{},
                        // Consumer (keep default values to disable any output)
@@ -155,61 +151,61 @@ namespace op
          * Emplace (move) an element on the first (input) queue.
          * Only valid if ThreadManagerMode::Asynchronous or ThreadManagerMode::AsynchronousIn.
          * If the input queue is full or the Wrapper was stopped, it will return false and not emplace it.
-         * @param tDatums TDatumsSP element to be emplaced.
+         * @param tDatums std::shared_ptr<TDatums> element to be emplaced.
          * @return Boolean specifying whether the tDatums could be emplaced.
          */
-        bool tryEmplace(TDatumsSP& tDatums);
+        bool tryEmplace(std::shared_ptr<TDatums>& tDatums);
 
         /**
          * Emplace (move) an element on the first (input) queue.
          * Similar to tryEmplace.
          * However, if the input queue is full, it will wait until it can emplace it.
          * If the Wrapper class is stopped before adding the element, it will return false and not emplace it.
-         * @param tDatums TDatumsSP element to be emplaced.
+         * @param tDatums std::shared_ptr<TDatums> element to be emplaced.
          * @return Boolean specifying whether the tDatums could be emplaced.
          */
-        bool waitAndEmplace(TDatumsSP& tDatums);
+        bool waitAndEmplace(std::shared_ptr<TDatums>& tDatums);
 
         /**
          * Push (copy) an element on the first (input) queue.
          * Same as tryEmplace, but it copies the data instead of moving it.
-         * @param tDatums TDatumsSP element to be pushed.
+         * @param tDatums std::shared_ptr<TDatums> element to be pushed.
          * @return Boolean specifying whether the tDatums could be pushed.
          */
-        bool tryPush(const TDatumsSP& tDatums);
+        bool tryPush(const std::shared_ptr<TDatums>& tDatums);
 
         /**
          * Push (copy) an element on the first (input) queue.
          * Same as waitAndEmplace, but it copies the data instead of moving it.
-         * @param tDatums TDatumsSP element to be pushed.
+         * @param tDatums std::shared_ptr<TDatums> element to be pushed.
          * @return Boolean specifying whether the tDatums could be pushed.
          */
-        bool waitAndPush(const TDatumsSP& tDatums);
+        bool waitAndPush(const std::shared_ptr<TDatums>& tDatums);
 
         /**
          * Pop (retrieve) an element from the last (output) queue.
          * Only valid if ThreadManagerMode::Asynchronous or ThreadManagerMode::AsynchronousOut.
          * If the output queue is empty or the Wrapper was stopped, it will return false and not retrieve it.
-         * @param tDatums TDatumsSP element where the retrieved element will be placed.
+         * @param tDatums std::shared_ptr<TDatums> element where the retrieved element will be placed.
          * @return Boolean specifying whether the tDatums could be retrieved.
          */
-        bool tryPop(TDatumsSP& tDatums);
+        bool tryPop(std::shared_ptr<TDatums>& tDatums);
 
         /**
          * Pop (retrieve) an element from the last (output) queue.
          * Similar to tryPop.
          * However, if the output queue is empty, it will wait until it can pop an element.
          * If the Wrapper class is stopped before popping the element, it will return false and not retrieve it.
-         * @param tDatums TDatumsSP element where the retrieved element will be placed.
+         * @param tDatums std::shared_ptr<TDatums> element where the retrieved element will be placed.
          * @return Boolean specifying whether the tDatums could be retrieved.
          */
-        bool waitAndPop(TDatumsSP& tDatums);
+        bool waitAndPop(std::shared_ptr<TDatums>& tDatums);
 
     private:
         const ThreadManagerMode mThreadManagerMode;
         const std::shared_ptr<std::pair<std::atomic<bool>, std::atomic<int>>> spVideoSeek;
         bool mConfigured;
-        ThreadManager<TDatumsSP> mThreadManager;
+        ThreadManager<std::shared_ptr<TDatums>> mThreadManager;
         bool mUserInputWsOnNewThread;
         bool mUserPostProcessingWsOnNewThread;
         bool mUserOutputWsOnNewThread;
@@ -218,12 +214,11 @@ namespace op
         // Workers
         std::vector<TWorker> mUserInputWs;
         TWorker wDatumProducer;
+        TWorker spWIdGenerator;
         TWorker spWScaleAndSizeExtractor;
         TWorker spWCvMatToOpInput;
         TWorker spWCvMatToOpOutput;
-        std::vector<std::vector<TWorker>> spWPoseExtractors;
-        std::vector<std::vector<TWorker>> spWPoseTriangulations;
-        std::vector<std::vector<TWorker>> spWJointAngleEstimations;
+        std::vector<std::vector<TWorker>> spWPoses;
         std::vector<TWorker> mPostProcessingWs;
         std::vector<TWorker> mUserPostProcessingWs;
         std::vector<TWorker> mOutputWs;
@@ -266,21 +261,21 @@ namespace op
 // Implementation
 #include <openpose/3d/headers.hpp>
 #include <openpose/core/headers.hpp>
+#include <openpose/experimental/tracking/headers.hpp>
 #include <openpose/face/headers.hpp>
 #include <openpose/filestream/headers.hpp>
-#include <openpose/gpu/gpu.hpp>
 #include <openpose/gui/headers.hpp>
+#include <openpose/gpu/gpu.hpp>
 #include <openpose/hand/headers.hpp>
 #include <openpose/pose/headers.hpp>
 #include <openpose/producer/headers.hpp>
-#include <openpose/tracking/headers.hpp>
 #include <openpose/utilities/fileSystem.hpp>
 #include <openpose/utilities/standard.hpp>
 #include <openpose/wrapper/wrapperAuxiliary.hpp>
 namespace op
 {
-    template<typename TDatums, typename TDatumsSP, typename TWorker, typename TQueue>
-    Wrapper<TDatums, TDatumsSP, TWorker, TQueue>::Wrapper(const ThreadManagerMode threadManagerMode) :
+    template<typename TDatums, typename TWorker, typename TQueue>
+    Wrapper<TDatums, TWorker, TQueue>::Wrapper(const ThreadManagerMode threadManagerMode) :
         mThreadManagerMode{threadManagerMode},
         spVideoSeek{std::make_shared<std::pair<std::atomic<bool>, std::atomic<int>>>()},
         mConfigured{false},
@@ -299,8 +294,8 @@ namespace op
         }
     }
 
-    template<typename TDatums, typename TDatumsSP, typename TWorker, typename TQueue>
-    Wrapper<TDatums, TDatumsSP, TWorker, TQueue>::~Wrapper()
+    template<typename TDatums, typename TWorker, typename TQueue>
+    Wrapper<TDatums, TWorker, TQueue>::~Wrapper()
     {
         try
         {
@@ -313,8 +308,8 @@ namespace op
         }
     }
 
-    template<typename TDatums, typename TDatumsSP, typename TWorker, typename TQueue>
-    void Wrapper<TDatums, TDatumsSP, TWorker, TQueue>::disableMultiThreading()
+    template<typename TDatums, typename TWorker, typename TQueue>
+    void Wrapper<TDatums, TWorker, TQueue>::disableMultiThreading()
     {
         try
         {
@@ -326,9 +321,8 @@ namespace op
         }
     }
 
-    template<typename TDatums, typename TDatumsSP, typename TWorker, typename TQueue>
-    void Wrapper<TDatums, TDatumsSP, TWorker, TQueue>::setWorkerInput(const TWorker& worker,
-                                                                      const bool workerOnNewThread)
+    template<typename TDatums, typename TWorker, typename TQueue>
+    void Wrapper<TDatums, TWorker, TQueue>::setWorkerInput(const TWorker& worker, const bool workerOnNewThread)
     {
         try
         {
@@ -344,9 +338,9 @@ namespace op
         }
     }
 
-    template<typename TDatums, typename TDatumsSP, typename TWorker, typename TQueue>
-    void Wrapper<TDatums, TDatumsSP, TWorker, TQueue>::setWorkerPostProcessing(const TWorker& worker,
-                                                                               const bool workerOnNewThread)
+    template<typename TDatums, typename TWorker, typename TQueue>
+    void Wrapper<TDatums, TWorker, TQueue>::setWorkerPostProcessing(const TWorker& worker,
+                                                                    const bool workerOnNewThread)
     {
         try
         {
@@ -362,9 +356,8 @@ namespace op
         }
     }
 
-    template<typename TDatums, typename TDatumsSP, typename TWorker, typename TQueue>
-    void Wrapper<TDatums, TDatumsSP, TWorker, TQueue>::setWorkerOutput(const TWorker& worker,
-                                                                       const bool workerOnNewThread)
+    template<typename TDatums, typename TWorker, typename TQueue>
+    void Wrapper<TDatums, TWorker, TQueue>::setWorkerOutput(const TWorker& worker, const bool workerOnNewThread)
     {
         try
         {
@@ -380,15 +373,15 @@ namespace op
         }
     }
 
-    template<typename TDatums, typename TDatumsSP, typename TWorker, typename TQueue>
-    void Wrapper<TDatums, TDatumsSP, TWorker, TQueue>::configure(const WrapperStructPose& wrapperStructPose,
-                                                                 const WrapperStructInput& wrapperStructInput,
-                                                                 const WrapperStructOutput& wrapperStructOutput)
+    template<typename TDatums, typename TWorker, typename TQueue>
+    void Wrapper<TDatums, TWorker, TQueue>::configure(const WrapperStructPose& wrapperStructPose,
+                                                      const WrapperStructInput& wrapperStructInput,
+                                                      const WrapperStructOutput& wrapperStructOutput)
     {
         try
         {
             configure(wrapperStructPose, WrapperStructFace{}, WrapperStructHand{},
-                      WrapperStructExtra{}, wrapperStructInput, wrapperStructOutput);
+                      wrapperStructInput, wrapperStructOutput);
         }
         catch (const std::exception& e)
         {
@@ -396,16 +389,16 @@ namespace op
         }
     }
 
-    template<typename TDatums, typename TDatumsSP, typename TWorker, typename TQueue>
-    void Wrapper<TDatums, TDatumsSP, TWorker, TQueue>::configure(const WrapperStructPose& wrapperStructPose,
-                                                                 const WrapperStructFace& wrapperStructFace,
-                                                                 const WrapperStructInput& wrapperStructInput,
-                                                                 const WrapperStructOutput& wrapperStructOutput)
+    template<typename TDatums, typename TWorker, typename TQueue>
+    void Wrapper<TDatums, TWorker, TQueue>::configure(const WrapperStructPose& wrapperStructPose,
+                                                      const WrapperStructFace& wrapperStructFace,
+                                                      const WrapperStructInput& wrapperStructInput,
+                                                      const WrapperStructOutput& wrapperStructOutput)
     {
         try
         {
             configure(wrapperStructPose, wrapperStructFace, WrapperStructHand{},
-                      WrapperStructExtra{}, wrapperStructInput, wrapperStructOutput);
+                      wrapperStructInput, wrapperStructOutput);
         }
         catch (const std::exception& e)
         {
@@ -413,16 +406,16 @@ namespace op
         }
     }
 
-    template<typename TDatums, typename TDatumsSP, typename TWorker, typename TQueue>
-    void Wrapper<TDatums, TDatumsSP, TWorker, TQueue>::configure(const WrapperStructPose& wrapperStructPose,
-                                                                 const WrapperStructHand& wrapperStructHand,
-                                                                 const WrapperStructInput& wrapperStructInput,
-                                                                 const WrapperStructOutput& wrapperStructOutput)
+    template<typename TDatums, typename TWorker, typename TQueue>
+    void Wrapper<TDatums, TWorker, TQueue>::configure(const WrapperStructPose& wrapperStructPose,
+                                                      const WrapperStructHand& wrapperStructHand,
+                                                      const WrapperStructInput& wrapperStructInput,
+                                                      const WrapperStructOutput& wrapperStructOutput)
     {
         try
         {
             configure(wrapperStructPose, WrapperStructFace{}, wrapperStructHand,
-                      WrapperStructExtra{}, wrapperStructInput, wrapperStructOutput);
+                      wrapperStructInput, wrapperStructOutput);
         }
         catch (const std::exception& e)
         {
@@ -430,18 +423,19 @@ namespace op
         }
     }
 
-    template<typename TDatums, typename TDatumsSP, typename TWorker, typename TQueue>
-    void Wrapper<TDatums, TDatumsSP, TWorker, TQueue>::configure(const WrapperStructPose& wrapperStructPoseTemp,
-                                                                 const WrapperStructFace& wrapperStructFace,
-                                                                 const WrapperStructHand& wrapperStructHand,
-                                                                 const WrapperStructExtra& wrapperStructExtra,
-                                                                 const WrapperStructInput& wrapperStructInput,
-                                                                 const WrapperStructOutput& wrapperStructOutput)
+    template<typename TDatums, typename TWorker, typename TQueue>
+    void Wrapper<TDatums, TWorker, TQueue>::configure(const WrapperStructPose& wrapperStructPose,
+                                                      const WrapperStructFace& wrapperStructFace,
+                                                      const WrapperStructHand& wrapperStructHand,
+                                                      const WrapperStructInput& wrapperStructInput,
+                                                      const WrapperStructOutput& wrapperStructOutput)
     {
         try
         {
-            auto wrapperStructPose = wrapperStructPoseTemp;
             log("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
+
+            // Shortcut
+            typedef std::shared_ptr<TDatums> TDatumsPtr;
 
             // Required parameters
             const auto renderOutput = wrapperStructPose.renderMode != RenderMode::None
@@ -456,9 +450,8 @@ namespace op
 
             // Check no wrong/contradictory flags enabled
             const auto userOutputWsEmpty = mUserOutputWs.empty();
-            wrapperConfigureSecurityChecks(wrapperStructPose, wrapperStructFace, wrapperStructHand, wrapperStructExtra,
-                                           wrapperStructInput, wrapperStructOutput, renderOutput, userOutputWsEmpty,
-                                           mThreadManagerMode);
+            wrapperConfigureSecurityChecks(wrapperStructPose, wrapperStructFace, wrapperStructHand, wrapperStructInput,
+                                           wrapperStructOutput, renderOutput, userOutputWsEmpty, mThreadManagerMode);
 
             // Get number threads
             auto numberThreads = wrapperStructPose.gpuNumber;
@@ -511,8 +504,7 @@ namespace op
             // Common parameters
             auto finalOutputSize = wrapperStructPose.outputSize;
             Point<int> producerSize{-1,-1};
-            const auto oPProducer = (wrapperStructInput.producerSharedPtr != nullptr);
-            if (oPProducer)
+            if (wrapperStructInput.producerSharedPtr != nullptr)
             {
                 // 1. Set producer properties
                 const auto displayProducerFpsMode = (wrapperStructInput.realTimeProcessing
@@ -531,20 +523,18 @@ namespace op
             }
 
             // Producer
-            if (oPProducer)
+            if (wrapperStructInput.producerSharedPtr != nullptr)
             {
                 const auto datumProducer = std::make_shared<DatumProducer<TDatums>>(
                     wrapperStructInput.producerSharedPtr, wrapperStructInput.frameFirst, wrapperStructInput.frameLast,
                     spVideoSeek
                 );
-                wDatumProducer = std::make_shared<WDatumProducer<TDatumsSP, TDatums>>(datumProducer);
+                wDatumProducer = std::make_shared<WDatumProducer<TDatumsPtr, TDatums>>(datumProducer);
             }
             else
                 wDatumProducer = nullptr;
 
-            std::vector<std::shared_ptr<PoseExtractorNet>> poseExtractorNets;
-            std::vector<std::shared_ptr<FaceExtractorNet>> faceExtractorNets;
-            std::vector<std::shared_ptr<HandExtractorNet>> handExtractorNets;
+            std::vector<std::shared_ptr<PoseExtractor>> poseExtractors;
             std::vector<std::shared_ptr<PoseGpuRenderer>> poseGpuRenderers;
             std::shared_ptr<PoseCpuRenderer> poseCpuRenderer;
             if (numberThreads > 0)
@@ -554,26 +544,26 @@ namespace op
                     wrapperStructPose.netInputSize, finalOutputSize, wrapperStructPose.scalesNumber,
                     wrapperStructPose.scaleGap
                 );
-                spWScaleAndSizeExtractor = std::make_shared<WScaleAndSizeExtractor<TDatumsSP>>(scaleAndSizeExtractor);
+                spWScaleAndSizeExtractor = std::make_shared<WScaleAndSizeExtractor<TDatumsPtr>>(scaleAndSizeExtractor);
 
                 // Input cvMat to OpenPose input & output format
                 const auto cvMatToOpInput = std::make_shared<CvMatToOpInput>(wrapperStructPose.poseModel);
-                spWCvMatToOpInput = std::make_shared<WCvMatToOpInput<TDatumsSP>>(cvMatToOpInput);
+                spWCvMatToOpInput = std::make_shared<WCvMatToOpInput<TDatumsPtr>>(cvMatToOpInput);
                 if (renderOutput)
                 {
                     const auto cvMatToOpOutput = std::make_shared<CvMatToOpOutput>();
-                    spWCvMatToOpOutput = std::make_shared<WCvMatToOpOutput<TDatumsSP>>(cvMatToOpOutput);
+                    spWCvMatToOpOutput = std::make_shared<WCvMatToOpOutput<TDatumsPtr>>(cvMatToOpOutput);
                 }
 
                 // Pose estimators & renderers
                 std::vector<TWorker> cpuRenderers;
-                spWPoseExtractors.clear();
-                spWPoseExtractors.resize(numberThreads);
+                spWPoses.clear();
+                spWPoses.resize(numberThreads);
                 if (wrapperStructPose.enable)
                 {
                     // Pose estimators
                     for (auto gpuId = 0; gpuId < numberThreads; gpuId++)
-                        poseExtractorNets.emplace_back(std::make_shared<PoseExtractorCaffe>(
+                        poseExtractors.emplace_back(std::make_shared<PoseExtractorCaffe>(
                             wrapperStructPose.poseModel, modelFolder, gpuId + gpuNumberStart,
                             wrapperStructPose.heatMapTypes, wrapperStructPose.heatMapScale,
                             wrapperStructPose.addPartCandidates, wrapperStructPose.enableGoogleLogging
@@ -591,10 +581,10 @@ namespace op
                         // GPU rendering
                         if (renderOutputGpu)
                         {
-                            for (const auto& poseExtractorNet : poseExtractorNets)
+                            for (const auto& poseExtractor : poseExtractors)
                             {
                                 poseGpuRenderers.emplace_back(std::make_shared<PoseGpuRenderer>(
-                                    wrapperStructPose.poseModel, poseExtractorNet, wrapperStructPose.renderThreshold,
+                                    wrapperStructPose.poseModel, poseExtractor, wrapperStructPose.renderThreshold,
                                     wrapperStructPose.blendOriginalFrame, alphaKeypoint,
                                     alphaHeatMap, wrapperStructPose.defaultPartToRender
                                 ));
@@ -607,54 +597,26 @@ namespace op
                                 wrapperStructPose.poseModel, wrapperStructPose.renderThreshold,
                                 wrapperStructPose.blendOriginalFrame, alphaKeypoint, alphaHeatMap,
                                 wrapperStructPose.defaultPartToRender);
-                            cpuRenderers.emplace_back(std::make_shared<WPoseRenderer<TDatumsSP>>(poseCpuRenderer));
+                            cpuRenderers.emplace_back(std::make_shared<WPoseRenderer<TDatumsPtr>>(poseCpuRenderer));
                         }
                     }
                     log("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
 
                     // Pose extractor(s)
-                    spWPoseExtractors.resize(poseExtractorNets.size());
-                    const auto personIdExtractor = (wrapperStructExtra.identification
-                        ? std::make_shared<PersonIdExtractor>() : nullptr);
-                    // Keep top N people
-                    // Added right after PoseExtractorNet to avoid:
+                    spWPoses.resize(poseExtractors.size());
+                    for (auto i = 0u; i < spWPoses.size(); i++)
+                        spWPoses.at(i) = {std::make_shared<WPoseExtractor<TDatumsPtr>>(poseExtractors.at(i))};
+
+                    // Added right after PoseExtractor to avoid:
                     // 1) Rendering people that are later deleted (wrong visualization).
                     // 2) Processing faces and hands on people that will be deleted (speed up).
-                    // 3) Running tracking before deleting the people.
-                    // Add KeepTopNPeople for each PoseExtractorNet
-                    const auto keepTopNPeople = (wrapperStructPose.numberPeopleMax > 0 ?
-                        std::make_shared<KeepTopNPeople>(wrapperStructPose.numberPeopleMax)
-                        : nullptr);
-                    // Person tracker
-                    auto personTrackers = std::make_shared<std::vector<std::shared_ptr<PersonTracker>>>();
-                    if (wrapperStructExtra.tracking > -1)
-                        personTrackers->emplace_back(
-                            std::make_shared<PersonTracker>(wrapperStructExtra.tracking == 0));
-                    for (auto i = 0u; i < spWPoseExtractors.size(); i++)
+                    if (wrapperStructPose.numberPeopleMax > 0)
                     {
-                        // OpenPose keypoint detector + keepTopNPeople
-                        //    + ID extractor (experimental) + tracking (experimental)
-                        const auto poseExtractor = std::make_shared<PoseExtractor>(
-                            poseExtractorNets.at(i), keepTopNPeople, personIdExtractor, personTrackers,
-                            wrapperStructPose.numberPeopleMax, wrapperStructExtra.tracking);
-                        spWPoseExtractors.at(i) = {std::make_shared<WPoseExtractor<TDatumsSP>>(poseExtractor)};
-                        // // Just OpenPose keypoint detector
-                        // spWPoseExtractors.at(i) = {std::make_shared<WPoseExtractorNet<TDatumsSP>>(
-                        //     poseExtractorNets.at(i))};
+                        // Add KeepTopNPeople for each PoseExtractor
+                        const auto keepTopNPeople = std::make_shared<KeepTopNPeople>(wrapperStructPose.numberPeopleMax);
+                        for (auto& wPose : spWPoses)
+                            wPose.emplace_back(std::make_shared<WKeepTopNPeople<TDatumsPtr>>(keepTopNPeople));
                     }
-
-                    // // (Before tracking / id extractor)
-                    // // Added right after PoseExtractorNet to avoid:
-                    // // 1) Rendering people that are later deleted (wrong visualization).
-                    // // 2) Processing faces and hands on people that will be deleted (speed up).
-                    // if (wrapperStructPose.numberPeopleMax > 0)
-                    // {
-                    //     // Add KeepTopNPeople for each PoseExtractorNet
-                    //     const auto keepTopNPeople = std::make_shared<KeepTopNPeople>(
-                    //         wrapperStructPose.numberPeopleMax);
-                    //     for (auto& wPose : spWPoseExtractors)
-                    //         wPose.emplace_back(std::make_shared<WKeepTopNPeople<TDatumsSP>>(keepTopNPeople));
-                    // }
                 }
 
 
@@ -666,36 +628,34 @@ namespace op
                     if (wrapperStructPose.enable)
                     {
                         const auto faceDetector = std::make_shared<FaceDetector>(wrapperStructPose.poseModel);
-                        for (auto& wPose : spWPoseExtractors)
-                            wPose.emplace_back(std::make_shared<WFaceDetector<TDatumsSP>>(faceDetector));
+                        for (auto& wPose : spWPoses)
+                            wPose.emplace_back(std::make_shared<WFaceDetector<TDatumsPtr>>(faceDetector));
                     }
                     // OpenCV face detector
                     else
                     {
                         log("Body keypoint detection is disabled. Hence, using OpenCV face detector (much less"
                             " accurate but faster).", Priority::High);
-                        for (auto& wPose : spWPoseExtractors)
+                        for (auto& wPose : spWPoses)
                         {
                             // 1 FaceDetectorOpenCV per thread, OpenCV face detector is not thread-safe
                             const auto faceDetectorOpenCV = std::make_shared<FaceDetectorOpenCV>(modelFolder);
                             wPose.emplace_back(
-                                std::make_shared<WFaceDetectorOpenCV<TDatumsSP>>(faceDetectorOpenCV)
+                                std::make_shared<WFaceDetectorOpenCV<TDatumsPtr>>(faceDetectorOpenCV)
                             );
                         }
                     }
                     // Face keypoint extractor
-                    for (auto gpu = 0u; gpu < spWPoseExtractors.size(); gpu++)
+                    for (auto gpu = 0u; gpu < spWPoses.size(); gpu++)
                     {
                         // Face keypoint extractor
                         const auto netOutputSize = wrapperStructFace.netInputSize;
-                        const auto faceExtractorNet = std::make_shared<FaceExtractorCaffe>(
+                        const auto faceExtractor = std::make_shared<FaceExtractorCaffe>(
                             wrapperStructFace.netInputSize, netOutputSize, modelFolder,
                             gpu + gpuNumberStart, wrapperStructPose.heatMapTypes, wrapperStructPose.heatMapScale,
                             wrapperStructPose.enableGoogleLogging
                         );
-                        faceExtractorNets.emplace_back(faceExtractorNet);
-                        spWPoseExtractors.at(gpu).emplace_back(
-                            std::make_shared<WFaceExtractorNet<TDatumsSP>>(faceExtractorNet));
+                        spWPoses.at(gpu).emplace_back(std::make_shared<WFaceExtractor<TDatumsPtr>>(faceExtractor));
                     }
                 }
 
@@ -703,42 +663,40 @@ namespace op
                 if (wrapperStructHand.enable)
                 {
                     const auto handDetector = std::make_shared<HandDetector>(wrapperStructPose.poseModel);
-                    for (auto gpu = 0u; gpu < spWPoseExtractors.size(); gpu++)
+                    for (auto gpu = 0u; gpu < spWPoses.size(); gpu++)
                     {
                         // Hand detector
                         // If tracking
                         if (wrapperStructHand.tracking)
-                            spWPoseExtractors.at(gpu).emplace_back(
-                                std::make_shared<WHandDetectorTracking<TDatumsSP>>(handDetector)
+                            spWPoses.at(gpu).emplace_back(
+                                std::make_shared<WHandDetectorTracking<TDatumsPtr>>(handDetector)
                             );
                         // If detection
                         else
-                            spWPoseExtractors.at(gpu).emplace_back(
-                                std::make_shared<WHandDetector<TDatumsSP>>(handDetector));
+                            spWPoses.at(gpu).emplace_back(std::make_shared<WHandDetector<TDatumsPtr>>(handDetector));
                         // Hand keypoint extractor
                         const auto netOutputSize = wrapperStructHand.netInputSize;
-                        const auto handExtractorNet = std::make_shared<HandExtractorCaffe>(
+                        const auto handExtractor = std::make_shared<HandExtractorCaffe>(
                             wrapperStructHand.netInputSize, netOutputSize, modelFolder,
                             gpu + gpuNumberStart, wrapperStructHand.scalesNumber, wrapperStructHand.scaleRange,
                             wrapperStructPose.heatMapTypes, wrapperStructPose.heatMapScale,
                             wrapperStructPose.enableGoogleLogging
                         );
-                        handExtractorNets.emplace_back(handExtractorNet);
-                        spWPoseExtractors.at(gpu).emplace_back(
-                            std::make_shared<WHandExtractorNet<TDatumsSP>>(handExtractorNet)
+                        spWPoses.at(gpu).emplace_back(
+                            std::make_shared<WHandExtractor<TDatumsPtr>>(handExtractor)
                             );
                         // If tracking
                         if (wrapperStructHand.tracking)
-                            spWPoseExtractors.at(gpu).emplace_back(
-                                std::make_shared<WHandDetectorUpdate<TDatumsSP>>(handDetector)
+                            spWPoses.at(gpu).emplace_back(
+                                std::make_shared<WHandDetectorUpdate<TDatumsPtr>>(handDetector)
                             );
                     }
                 }
 
                 // Pose renderer(s)
                 if (!poseGpuRenderers.empty())
-                    for (auto i = 0u; i < spWPoseExtractors.size(); i++)
-                        spWPoseExtractors.at(i).emplace_back(std::make_shared<WPoseRenderer<TDatumsSP>>(
+                    for (auto i = 0u; i < spWPoses.size(); i++)
+                        spWPoses.at(i).emplace_back(std::make_shared<WPoseRenderer<TDatumsPtr>>(
                             poseGpuRenderers.at(i)
                         ));
 
@@ -753,12 +711,12 @@ namespace op
                                                                                     wrapperStructFace.alphaKeypoint,
                                                                                     wrapperStructFace.alphaHeatMap);
                         // Add worker
-                        cpuRenderers.emplace_back(std::make_shared<WFaceRenderer<TDatumsSP>>(faceRenderer));
+                        cpuRenderers.emplace_back(std::make_shared<WFaceRenderer<TDatumsPtr>>(faceRenderer));
                     }
                     // GPU rendering
                     else if (wrapperStructFace.renderMode == RenderMode::Gpu)
                     {
-                        for (auto i = 0u; i < spWPoseExtractors.size(); i++)
+                        for (auto i = 0u; i < spWPoses.size(); i++)
                         {
                             // Construct face renderer
                             const auto faceRenderer = std::make_shared<FaceGpuRenderer>(
@@ -776,8 +734,7 @@ namespace op
                                                                            isLastRenderer);
                             }
                             // Add worker
-                            spWPoseExtractors.at(i).emplace_back(
-                                std::make_shared<WFaceRenderer<TDatumsSP>>(faceRenderer));
+                            spWPoses.at(i).emplace_back(std::make_shared<WFaceRenderer<TDatumsPtr>>(faceRenderer));
                         }
                     }
                     else
@@ -795,12 +752,12 @@ namespace op
                                                                                     wrapperStructHand.alphaKeypoint,
                                                                                     wrapperStructHand.alphaHeatMap);
                         // Add worker
-                        cpuRenderers.emplace_back(std::make_shared<WHandRenderer<TDatumsSP>>(handRenderer));
+                        cpuRenderers.emplace_back(std::make_shared<WHandRenderer<TDatumsPtr>>(handRenderer));
                     }
                     // GPU rendering
                     else if (wrapperStructHand.renderMode == RenderMode::Gpu)
                     {
-                        for (auto i = 0u; i < spWPoseExtractors.size(); i++)
+                        for (auto i = 0u; i < spWPoses.size(); i++)
                         {
                             // Construct hands renderer
                             const auto handRenderer = std::make_shared<HandGpuRenderer>(
@@ -818,44 +775,40 @@ namespace op
                                                                            isLastRenderer);
                             }
                             // Add worker
-                            spWPoseExtractors.at(i).emplace_back(
-                                std::make_shared<WHandRenderer<TDatumsSP>>(handRenderer));
+                            spWPoses.at(i).emplace_back(std::make_shared<WHandRenderer<TDatumsPtr>>(handRenderer));
                         }
                     }
                     else
                         error("Unknown RenderMode.", __LINE__, __FUNCTION__, __FILE__);
                 }
 
-                // 3-D reconstruction
-                spWPoseTriangulations.clear();
-                if (wrapperStructExtra.reconstruct3d)
-                {
-                    // For all (body/face/hands): PoseTriangulations ~30 msec, 8 GPUS ~30 msec for keypoint estimation
-                    spWPoseTriangulations.resize(fastMax(1, int(spWPoseExtractors.size() / 4)));
-                    for (auto i = 0u ; i < spWPoseTriangulations.size() ; i++)
-                    {
-                        const auto poseTriangulation = std::make_shared<PoseTriangulation>(
-                            wrapperStructExtra.minViews3d);
-                        spWPoseTriangulations.at(i) = {std::make_shared<WPoseTriangulation<TDatumsSP>>(
-                            poseTriangulation)};
-                    }
-                }
                 // Itermediate workers (e.g. OpenPose format to cv::Mat, json & frames recorder, ...)
                 mPostProcessingWs.clear();
-                // // Person ID identification (when no multi-thread and no dependency on tracking)
-                // if (wrapperStructExtra.identification)
-                // {
-                //     const auto personIdExtractor = std::make_shared<PersonIdExtractor>();
-                //     mPostProcessingWs.emplace_back(
-                //         std::make_shared<WPersonIdExtractor<TDatumsSP>>(personIdExtractor)
-                //     );
-                // }
+                // Frame buffer and ordering
+                if (spWPoses.size() > 1u)
+                    mPostProcessingWs.emplace_back(std::make_shared<WQueueOrderer<TDatumsPtr>>());
+                // Person ID identification
+                if (wrapperStructPose.identification)
+                {
+                    const auto personIdExtractor = std::make_shared<PersonIdExtractor>();
+                    mPostProcessingWs.emplace_back(
+                        std::make_shared<WPersonIdExtractor<TDatumsPtr>>(personIdExtractor)
+                    );
+                }
+                // 3-D reconstruction
+                if (wrapperStructPose.reconstruct3d)
+                {
+                    const auto poseTriangulation = std::make_shared<PoseTriangulation>(wrapperStructPose.minViews3d);
+                    mPostProcessingWs.emplace_back(
+                        std::make_shared<WPoseTriangulation<TDatumsPtr>>(poseTriangulation)
+                    );
+                }
                 // Frames processor (OpenPose format -> cv::Mat format)
                 if (renderOutput)
                 {
                     mPostProcessingWs = mergeVectors(mPostProcessingWs, cpuRenderers);
                     const auto opOutputToCvMat = std::make_shared<OpOutputToCvMat>();
-                    mPostProcessingWs.emplace_back(std::make_shared<WOpOutputToCvMat<TDatumsSP>>(opOutputToCvMat));
+                    mPostProcessingWs.emplace_back(std::make_shared<WOpOutputToCvMat<TDatumsPtr>>(opOutputToCvMat));
                 }
                 // Re-scale pose if desired
                 // If desired scale is not the current input
@@ -869,57 +822,28 @@ namespace op
                 {
                     // Then we must rescale the keypoints
                     auto keypointScaler = std::make_shared<KeypointScaler>(wrapperStructPose.keypointScale);
-                    mPostProcessingWs.emplace_back(std::make_shared<WKeypointScaler<TDatumsSP>>(keypointScaler));
+                    mPostProcessingWs.emplace_back(std::make_shared<WKeypointScaler<TDatumsPtr>>(keypointScaler));
                 }
             }
 
-            // IK/Adam
-            const auto displayAdam = wrapperStructOutput.displayMode == DisplayMode::DisplayAdam
-                                     || (wrapperStructOutput.displayMode == DisplayMode::DisplayAll
-                                         && wrapperStructExtra.ikThreads > 0);
-            spWJointAngleEstimations.clear();
-#ifdef USE_3D_ADAM_MODEL
-            if (wrapperStructExtra.ikThreads > 0)
-            {
-                spWJointAngleEstimations.resize(wrapperStructExtra.ikThreads);
-                // Pose extractor(s)
-                for (auto i = 0u; i < spWJointAngleEstimations.size(); i++)
-                {
-                    const auto jointAngleEstimation = std::make_shared<JointAngleEstimation>(displayAdam);
-                    spWJointAngleEstimations.at(i) = {std::make_shared<WJointAngleEstimation<TDatumsSP>>(
-                        jointAngleEstimation)};
-                }
-            }
-#endif
-
-            // Output workers
             mOutputWs.clear();
-            // Send information (e.g., to Unity) though UDP client-server communication
-#ifdef USE_3D_ADAM_MODEL
-            if (!wrapperStructOutput.udpHost.empty() && !wrapperStructOutput.udpPort.empty())
-            {
-                const auto udpSender = std::make_shared<UdpSender>(wrapperStructOutput.udpHost,
-                                                                   wrapperStructOutput.udpPort);
-                mOutputWs.emplace_back(std::make_shared<WUdpSender<TDatumsSP>>(udpSender));
-            }
-#endif
             // Write people pose data on disk (json for OpenCV >= 3, xml, yml...)
             if (!writeKeypointCleaned.empty())
             {
                 const auto keypointSaver = std::make_shared<KeypointSaver>(writeKeypointCleaned,
                                                                            wrapperStructOutput.writeKeypointFormat);
-                mOutputWs.emplace_back(std::make_shared<WPoseSaver<TDatumsSP>>(keypointSaver));
+                mOutputWs.emplace_back(std::make_shared<WPoseSaver<TDatumsPtr>>(keypointSaver));
                 if (wrapperStructFace.enable)
-                    mOutputWs.emplace_back(std::make_shared<WFaceSaver<TDatumsSP>>(keypointSaver));
+                    mOutputWs.emplace_back(std::make_shared<WFaceSaver<TDatumsPtr>>(keypointSaver));
                 if (wrapperStructHand.enable)
-                    mOutputWs.emplace_back(std::make_shared<WHandSaver<TDatumsSP>>(keypointSaver));
+                    mOutputWs.emplace_back(std::make_shared<WHandSaver<TDatumsPtr>>(keypointSaver));
             }
             // Write OpenPose output data on disk in json format (body/hand/face keypoints, body part locations if
             // enabled, etc.)
             if (!writeJsonCleaned.empty())
             {
                 const auto peopleJsonSaver = std::make_shared<PeopleJsonSaver>(writeJsonCleaned);
-                mOutputWs.emplace_back(std::make_shared<WPeopleJsonSaver<TDatumsSP>>(peopleJsonSaver));
+                mOutputWs.emplace_back(std::make_shared<WPeopleJsonSaver<TDatumsPtr>>(peopleJsonSaver));
             }
             // Write people pose data on disk (COCO validation json format)
             if (!wrapperStructOutput.writeCocoJson.empty())
@@ -927,61 +851,36 @@ namespace op
                 // If humanFormat: bigger size (& maybe slower to process), but easier for user to read it
                 const auto humanFormat = true;
                 const auto cocoJsonSaver = std::make_shared<CocoJsonSaver>(wrapperStructOutput.writeCocoJson,
-                                                                           humanFormat, CocoJsonFormat::Body);
-                mOutputWs.emplace_back(std::make_shared<WCocoJsonSaver<TDatumsSP>>(cocoJsonSaver));
-            }
-            // Write people foot pose data on disk (COCO validation json format for foot data)
-            if (!wrapperStructOutput.writeCocoFootJson.empty())
-            {
-                // If humanFormat: bigger size (& maybe slower to process), but easier for user to read it
-                const auto humanFormat = true;
-                const auto cocoJsonSaver = std::make_shared<CocoJsonSaver>(wrapperStructOutput.writeCocoFootJson,
-                                                                           humanFormat, CocoJsonFormat::Foot);
-                mOutputWs.emplace_back(std::make_shared<WCocoJsonSaver<TDatumsSP>>(cocoJsonSaver));
+                                                                           humanFormat);
+                mOutputWs.emplace_back(std::make_shared<WCocoJsonSaver<TDatumsPtr>>(cocoJsonSaver));
             }
             // Write frames as desired image format on hard disk
             if (!writeImagesCleaned.empty())
             {
                 const auto imageSaver = std::make_shared<ImageSaver>(writeImagesCleaned,
                                                                      wrapperStructOutput.writeImagesFormat);
-                mOutputWs.emplace_back(std::make_shared<WImageSaver<TDatumsSP>>(imageSaver));
+                mOutputWs.emplace_back(std::make_shared<WImageSaver<TDatumsPtr>>(imageSaver));
             }
             // Write frames as *.avi video on hard disk
-            const auto producerFps = (wrapperStructInput.producerSharedPtr == nullptr ?
-                                        0. : wrapperStructInput.producerSharedPtr->get(CV_CAP_PROP_FPS));
-            const auto originalVideoFps = (wrapperStructOutput.writeVideoFps > 0 ?
-                                            wrapperStructOutput.writeVideoFps
-                                            : producerFps);
-            if (!wrapperStructOutput.writeVideo.empty())
+            if (!wrapperStructOutput.writeVideo.empty() && wrapperStructInput.producerSharedPtr != nullptr)
             {
-                if (!oPProducer)
-                    error("Video file can only be recorded inside `wrapper/wrapper.hpp` if the producer"
-                          " is one of the default ones (e.g. video, webcam, ...).",
-                          __LINE__, __FUNCTION__, __FILE__);
                 if (finalOutputSize.x <= 0 || finalOutputSize.y <= 0)
                     error("Video can only be recorded if outputSize is fixed (e.g. video, webcam, IP camera),"
                           "but not for a image directory.", __LINE__, __FUNCTION__, __FILE__);
+                const auto originalVideoFps = (wrapperStructOutput.writeVideoFps > 0 ?
+                                                wrapperStructOutput.writeVideoFps
+                                                : wrapperStructInput.producerSharedPtr->get(CV_CAP_PROP_FPS));
                 const auto videoSaver = std::make_shared<VideoSaver>(
                     wrapperStructOutput.writeVideo, CV_FOURCC('M','J','P','G'), originalVideoFps, finalOutputSize
                 );
-                mOutputWs.emplace_back(std::make_shared<WVideoSaver<TDatumsSP>>(videoSaver));
+                mOutputWs.emplace_back(std::make_shared<WVideoSaver<TDatumsPtr>>(videoSaver));
             }
-            // Write joint angles as *.bvh file on hard disk
-#ifdef USE_3D_ADAM_MODEL
-            if (!wrapperStructOutput.writeBvh.empty())
-            {
-                const auto bvhSaver = std::make_shared<BvhSaver>(
-                    wrapperStructOutput.writeBvh, JointAngleEstimation::getTotalModel(), originalVideoFps
-                );
-                mOutputWs.emplace_back(std::make_shared<WBvhSaver<TDatumsSP>>(bvhSaver));
-            }
-#endif
             // Write heat maps as desired image format on hard disk
             if (!writeHeatMapsCleaned.empty())
             {
                 const auto heatMapSaver = std::make_shared<HeatMapSaver>(writeHeatMapsCleaned,
                                                                          wrapperStructOutput.writeHeatMapsFormat);
-                mOutputWs.emplace_back(std::make_shared<WHeatMapSaver<TDatumsSP>>(heatMapSaver));
+                mOutputWs.emplace_back(std::make_shared<WHeatMapSaver<TDatumsPtr>>(heatMapSaver));
             }
             // Add frame information for GUI
             const bool guiEnabled = (wrapperStructOutput.displayMode != DisplayMode::NoDisplay);
@@ -992,7 +891,7 @@ namespace op
                                                    || mThreadManagerMode == ThreadManagerMode::AsynchronousOut))
             {
                 const auto guiInfoAdder = std::make_shared<GuiInfoAdder>(numberThreads, guiEnabled);
-                mOutputWs.emplace_back(std::make_shared<WGuiInfoAdder<TDatumsSP>>(guiInfoAdder));
+                mOutputWs.emplace_back(std::make_shared<WGuiInfoAdder<TDatumsPtr>>(guiInfoAdder));
             }
             // Minimal graphical user interface (GUI)
             spWGui = nullptr;
@@ -1006,44 +905,29 @@ namespace op
                     for (const auto& poseGpuRenderer : poseGpuRenderers)
                         renderers.emplace_back(std::static_pointer_cast<Renderer>(poseGpuRenderer));
                 // Display
-                // Adam (+3-D/2-D) display
-                if (displayAdam)
-                {
-#ifdef USE_3D_ADAM_MODEL
-                    // Gui
-                    const auto gui = std::make_shared<GuiAdam>(
-                        finalOutputSize, wrapperStructOutput.fullScreen, mThreadManager.getIsRunningSharedPtr(),
-                        spVideoSeek, poseExtractorNets, faceExtractorNets, handExtractorNets, renderers,
-                        wrapperStructOutput.displayMode, JointAngleEstimation::getTotalModel(),
-                        wrapperStructOutput.writeVideoAdam
-                    );
-                    // WGui
-                    spWGui = {std::make_shared<WGuiAdam<TDatumsSP>>(gui)};
-#endif
-                }
                 // 3-D (+2-D) display
-                else if (wrapperStructOutput.displayMode == DisplayMode::Display3D
+                if (wrapperStructOutput.displayMode == DisplayMode::Display3D
                     || wrapperStructOutput.displayMode == DisplayMode::DisplayAll)
                 {
                     // Gui
-                    const auto gui = std::make_shared<Gui3D>(
+                    auto gui = std::make_shared<Gui3D>(
                         finalOutputSize, wrapperStructOutput.fullScreen, mThreadManager.getIsRunningSharedPtr(),
-                        spVideoSeek, poseExtractorNets, faceExtractorNets, handExtractorNets, renderers,
-                        wrapperStructPose.poseModel, wrapperStructOutput.displayMode
+                        spVideoSeek, poseExtractors, renderers, wrapperStructPose.poseModel,
+                        wrapperStructOutput.displayMode
                     );
                     // WGui
-                    spWGui = {std::make_shared<WGui3D<TDatumsSP>>(gui)};
+                    spWGui = {std::make_shared<WGui3D<TDatumsPtr>>(gui)};
                 }
                 // 2-D display
                 else if (wrapperStructOutput.displayMode == DisplayMode::Display2D)
                 {
                     // Gui
-                    const auto gui = std::make_shared<Gui>(
+                    auto gui = std::make_shared<Gui>(
                         finalOutputSize, wrapperStructOutput.fullScreen, mThreadManager.getIsRunningSharedPtr(),
-                        spVideoSeek, poseExtractorNets, faceExtractorNets, handExtractorNets, renderers
+                        spVideoSeek, poseExtractors, renderers
                     );
                     // WGui
-                    spWGui = {std::make_shared<WGui<TDatumsSP>>(gui)};
+                    spWGui = {std::make_shared<WGui<TDatumsPtr>>(gui)};
                 }
                 else
                     error("Unknown DisplayMode.", __LINE__, __FUNCTION__, __FILE__);
@@ -1058,8 +942,8 @@ namespace op
         }
     }
 
-    template<typename TDatums, typename TDatumsSP, typename TWorker, typename TQueue>
-    void Wrapper<TDatums, TDatumsSP, TWorker, TQueue>::exec()
+    template<typename TDatums, typename TWorker, typename TQueue>
+    void Wrapper<TDatums, TWorker, TQueue>::exec()
     {
         try
         {
@@ -1073,8 +957,8 @@ namespace op
         }
     }
 
-    template<typename TDatums, typename TDatumsSP, typename TWorker, typename TQueue>
-    void Wrapper<TDatums, TDatumsSP, TWorker, TQueue>::start()
+    template<typename TDatums, typename TWorker, typename TQueue>
+    void Wrapper<TDatums, TWorker, TQueue>::start()
     {
         try
         {
@@ -1088,8 +972,8 @@ namespace op
         }
     }
 
-    template<typename TDatums, typename TDatumsSP, typename TWorker, typename TQueue>
-    void Wrapper<TDatums, TDatumsSP, TWorker, TQueue>::stop()
+    template<typename TDatums, typename TWorker, typename TQueue>
+    void Wrapper<TDatums, TWorker, TQueue>::stop()
     {
         try
         {
@@ -1101,8 +985,8 @@ namespace op
         }
     }
 
-    template<typename TDatums, typename TDatumsSP, typename TWorker, typename TQueue>
-    bool Wrapper<TDatums, TDatumsSP, TWorker, TQueue>::isRunning() const
+    template<typename TDatums, typename TWorker, typename TQueue>
+    bool Wrapper<TDatums, TWorker, TQueue>::isRunning() const
     {
         try
         {
@@ -1115,8 +999,8 @@ namespace op
         }
     }
 
-    template<typename TDatums, typename TDatumsSP, typename TWorker, typename TQueue>
-    bool Wrapper<TDatums, TDatumsSP, TWorker, TQueue>::tryEmplace(TDatumsSP& tDatums)
+    template<typename TDatums, typename TWorker, typename TQueue>
+    bool Wrapper<TDatums, TWorker, TQueue>::tryEmplace(std::shared_ptr<TDatums>& tDatums)
     {
         try
         {
@@ -1132,8 +1016,8 @@ namespace op
         }
     }
 
-    template<typename TDatums, typename TDatumsSP, typename TWorker, typename TQueue>
-    bool Wrapper<TDatums, TDatumsSP, TWorker, TQueue>::waitAndEmplace(TDatumsSP& tDatums)
+    template<typename TDatums, typename TWorker, typename TQueue>
+    bool Wrapper<TDatums, TWorker, TQueue>::waitAndEmplace(std::shared_ptr<TDatums>& tDatums)
     {
         try
         {
@@ -1149,8 +1033,8 @@ namespace op
         }
     }
 
-    template<typename TDatums, typename TDatumsSP, typename TWorker, typename TQueue>
-    bool Wrapper<TDatums, TDatumsSP, TWorker, TQueue>::tryPush(const TDatumsSP& tDatums)
+    template<typename TDatums, typename TWorker, typename TQueue>
+    bool Wrapper<TDatums, TWorker, TQueue>::tryPush(const std::shared_ptr<TDatums>& tDatums)
     {
         try
         {
@@ -1166,8 +1050,8 @@ namespace op
         }
     }
 
-    template<typename TDatums, typename TDatumsSP, typename TWorker, typename TQueue>
-    bool Wrapper<TDatums, TDatumsSP, TWorker, TQueue>::waitAndPush(const TDatumsSP& tDatums)
+    template<typename TDatums, typename TWorker, typename TQueue>
+    bool Wrapper<TDatums, TWorker, TQueue>::waitAndPush(const std::shared_ptr<TDatums>& tDatums)
     {
         try
         {
@@ -1183,8 +1067,8 @@ namespace op
         }
     }
 
-    template<typename TDatums, typename TDatumsSP, typename TWorker, typename TQueue>
-    bool Wrapper<TDatums, TDatumsSP, TWorker, TQueue>::tryPop(TDatumsSP& tDatums)
+    template<typename TDatums, typename TWorker, typename TQueue>
+    bool Wrapper<TDatums, TWorker, TQueue>::tryPop(std::shared_ptr<TDatums>& tDatums)
     {
         try
         {
@@ -1200,8 +1084,8 @@ namespace op
         }
     }
 
-    template<typename TDatums, typename TDatumsSP, typename TWorker, typename TQueue>
-    bool Wrapper<TDatums, TDatumsSP, TWorker, TQueue>::waitAndPop(TDatumsSP& tDatums)
+    template<typename TDatums, typename TWorker, typename TQueue>
+    bool Wrapper<TDatums, TWorker, TQueue>::waitAndPop(std::shared_ptr<TDatums>& tDatums)
     {
         try
         {
@@ -1217,8 +1101,8 @@ namespace op
         }
     }
 
-    template<typename TDatums, typename TDatumsSP, typename TWorker, typename TQueue>
-    void Wrapper<TDatums, TDatumsSP, TWorker, TQueue>::reset()
+    template<typename TDatums, typename TWorker, typename TQueue>
+    void Wrapper<TDatums, TWorker, TQueue>::reset()
     {
         try
         {
@@ -1231,9 +1115,7 @@ namespace op
             spWScaleAndSizeExtractor = nullptr;
             spWCvMatToOpInput = nullptr;
             spWCvMatToOpOutput = nullptr;
-            spWPoseExtractors.clear();
-            spWPoseTriangulations.clear();
-            spWJointAngleEstimations.clear();
+            spWPoses.clear();
             mPostProcessingWs.clear();
             mUserPostProcessingWs.clear();
             mOutputWs.clear();
@@ -1246,12 +1128,12 @@ namespace op
         }
     }
 
-    template<typename TDatums, typename TDatumsSP, typename TWorker, typename TQueue>
-    void Wrapper<TDatums, TDatumsSP, TWorker, TQueue>::configureThreadManager()
+    template<typename TDatums, typename TWorker, typename TQueue>
+    void Wrapper<TDatums, TWorker, TQueue>::configureThreadManager()
     {
         try
         {
-            // The less number of queues -> the less threads opened, and potentially the less lag
+            // The less number of queues -> the less lag
 
             // Security checks
             if (!mConfigured)
@@ -1273,186 +1155,116 @@ namespace op
                 error("No output selected.", __LINE__, __FUNCTION__, __FILE__);
             }
 
-            // Thread Manager
+            // Thread Manager:
             // Clean previous thread manager (avoid configure to crash the program if used more than once)
             mThreadManager.reset();
             mThreadId = 0ull;
             auto queueIn = 0ull;
             auto queueOut = 1ull;
-            // After producer
-            // ID generator (before any multi-threading or any function that requires the ID)
-            const auto wIdGenerator = std::make_shared<WIdGenerator<TDatumsSP>>();
-            std::vector<TWorker> workersAux{wIdGenerator};
-            // Scale & cv::Mat to OP format
-            if (spWScaleAndSizeExtractor != nullptr)
-                workersAux = mergeVectors(workersAux, {spWScaleAndSizeExtractor});
-            if (spWCvMatToOpInput != nullptr)
-                workersAux = mergeVectors(workersAux, {spWCvMatToOpInput});
-            // cv::Mat to output format
-            if (spWCvMatToOpOutput != nullptr)
-                workersAux = mergeVectors(workersAux, {spWCvMatToOpOutput});
-
-            // Producer
             // If custom user Worker and uses its own thread
+            spWIdGenerator = std::make_shared<WIdGenerator<std::shared_ptr<TDatums>>>();
             if (!mUserInputWs.empty() && mUserInputWsOnNewThread)
             {
                 // Thread 0, queues 0 -> 1
-                log("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
                 mThreadManager.add(mThreadId, mUserInputWs, queueIn++, queueOut++);
-                threadIdPP();
+                if (spWScaleAndSizeExtractor != nullptr && spWCvMatToOpInput != nullptr)
+                {
+                    threadIdPP();
+                    // Thread 1, queues 1 -> 2
+                    if (spWCvMatToOpOutput == nullptr)
+                        mThreadManager.add(mThreadId, {spWIdGenerator, spWScaleAndSizeExtractor, spWCvMatToOpInput},
+                                           queueIn++, queueOut++);
+                    else
+                        mThreadManager.add(mThreadId, {spWIdGenerator, spWScaleAndSizeExtractor, spWCvMatToOpInput,
+                                           spWCvMatToOpOutput}, queueIn++, queueOut++);
+                }
+                else
+                    mThreadManager.add(mThreadId, spWIdGenerator, queueIn++, queueOut++);
             }
-            // If custom user Worker in same thread
-            else if (!mUserInputWs.empty())
-                workersAux = mergeVectors(mUserInputWs, workersAux);
-            // If OpenPose producer (same thread)
-            else if (wDatumProducer != nullptr)
-                workersAux = mergeVectors({wDatumProducer}, workersAux);
-            // Otherwise
-            else if (mThreadManagerMode != ThreadManagerMode::Asynchronous
-                        && mThreadManagerMode != ThreadManagerMode::AsynchronousIn)
-                error("No input selected.", __LINE__, __FUNCTION__, __FILE__);
-            // Thread 0 or 1, queues 0 -> 1
-            log("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
-            mThreadManager.add(mThreadId, workersAux, queueIn++, queueOut++);
-            // Increase thread
+            // If custom user Worker in same thread or producer on same thread
+            else
+            {
+                std::vector<TWorker> workersAux;
+                // Custom user Worker
+                if (!mUserInputWs.empty())
+                    workersAux = mergeVectors(workersAux, mUserInputWs);
+                // OpenPose producer
+                else if (wDatumProducer != nullptr)
+                    workersAux = mergeVectors(workersAux, {wDatumProducer});
+                // Otherwise
+                else if (mThreadManagerMode != ThreadManagerMode::Asynchronous
+                            && mThreadManagerMode != ThreadManagerMode::AsynchronousIn)
+                    error("No input selected.", __LINE__, __FUNCTION__, __FILE__);
+                // ID generator
+                workersAux = mergeVectors(workersAux, {spWIdGenerator});
+                // Scale & cv::Mat to OP format
+                if (spWScaleAndSizeExtractor != nullptr && spWCvMatToOpInput != nullptr)
+                    workersAux = mergeVectors(workersAux, {spWScaleAndSizeExtractor,
+                                                           spWCvMatToOpInput});
+                // cv::Mat to output format
+                if (spWCvMatToOpOutput != nullptr)
+                    workersAux = mergeVectors(workersAux, {spWCvMatToOpOutput});
+                // Thread 0 or 1, queues 0 -> 1
+                mThreadManager.add(mThreadId, workersAux, queueIn++, queueOut++);
+            }
             threadIdPP();
-
             // Pose estimation & rendering
             // Thread 1 or 2...X, queues 1 -> 2, X = 2 + #GPUs
-            if (!spWPoseExtractors.empty())
+            if (!spWPoses.empty())
             {
                 if (mMultiThreadEnabled)
                 {
-                    for (auto& wPose : spWPoseExtractors)
+                    for (auto& wPose : spWPoses)
                     {
-                        log("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
                         mThreadManager.add(mThreadId, wPose, queueIn, queueOut);
                         threadIdPP();
                     }
-                    queueIn++;
-                    queueOut++;
-                    // Sort frames - Required own thread
-                    if (spWPoseExtractors.size() > 1u)
-                    {
-                        const auto wQueueOrderer = std::make_shared<WQueueOrderer<TDatumsSP>>();
-                        log("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
-                        mThreadManager.add(mThreadId, wQueueOrderer, queueIn++, queueOut++);
-                        threadIdPP();
-                    }
                 }
                 else
                 {
-                    if (spWPoseExtractors.size() > 1)
+                    if (spWPoses.size() > 1)
                         log("Multi-threading disabled, only 1 thread running. All GPUs have been disabled but the"
                             " first one, which is defined by gpuNumberStart (e.g. in the OpenPose demo, it is set"
                             " with the `--num_gpu_start` flag).", Priority::High);
-                    log("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
-                    mThreadManager.add(mThreadId, spWPoseExtractors.at(0), queueIn++, queueOut++);
+                    mThreadManager.add(mThreadId, spWPoses.at(0), queueIn, queueOut);
                 }
-            }
-            // Assemble all frames from same time instant (3-D module)
-            const auto wQueueAssembler = std::make_shared<WQueueAssembler<TDatumsSP, TDatums>>();
-            // 3-D reconstruction
-            if (!spWPoseTriangulations.empty())
-            {
-                // Assemble frames
-                log("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
-                mThreadManager.add(mThreadId, wQueueAssembler, queueIn++, queueOut++);
-                threadIdPP();
-                // 3-D reconstruction
-                if (mMultiThreadEnabled)
-                {
-                    for (auto& wPoseTriangulations : spWPoseTriangulations)
-                    {
-                        log("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
-                        mThreadManager.add(mThreadId, wPoseTriangulations, queueIn, queueOut);
-                        threadIdPP();
-                    }
-                    queueIn++;
-                    queueOut++;
-                    // Sort frames
-                    if (spWPoseTriangulations.size() > 1u)
-                    {
-                        const auto wQueueOrderer = std::make_shared<WQueueOrderer<TDatumsSP>>();
-                        log("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
-                        mThreadManager.add(mThreadId, wQueueOrderer, queueIn++, queueOut++);
-                        threadIdPP();
-                    }
-                }
-                else
-                {
-                    if (spWPoseTriangulations.size() > 1)
-                        log("Multi-threading disabled, only 1 thread running for 3-D triangulation.",
-                            Priority::High);
-                    log("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
-                    mThreadManager.add(mThreadId, spWPoseTriangulations.at(0), queueIn++, queueOut++);
-                }
-            }
-            else
-                mPostProcessingWs = mergeVectors({wQueueAssembler}, mPostProcessingWs);
-            // Adam/IK step
-            if (!spWJointAngleEstimations.empty())
-            {
-                if (mMultiThreadEnabled)
-                {
-                    for (auto& wJointAngleEstimator : spWJointAngleEstimations)
-                    {
-                        log("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
-                        mThreadManager.add(mThreadId, wJointAngleEstimator, queueIn, queueOut);
-                        threadIdPP();
-                    }
-                    queueIn++;
-                    queueOut++;
-                    // Sort frames
-                    if (spWJointAngleEstimations.size() > 1)
-                    {
-                        const auto wQueueOrderer = std::make_shared<WQueueOrderer<TDatumsSP>>();
-                        log("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
-                        mThreadManager.add(mThreadId, wQueueOrderer, queueIn++, queueOut++);
-                        threadIdPP();
-                    }
-                }
-                else
-                {
-                    if (spWJointAngleEstimations.size() > 1)
-                        log("Multi-threading disabled, only 1 thread running for joint angle estimation.",
-                            Priority::High);
-                    log("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
-                    mThreadManager.add(mThreadId, spWJointAngleEstimations.at(0), queueIn++, queueOut++);
-                }
-            }
-            // Post processing workers
-            if (!mPostProcessingWs.empty())
-            {
-                // Combining mPostProcessingWs and mOutputWs
-                mOutputWs = mergeVectors(mPostProcessingWs, mOutputWs);
-                // // If I wanna split them
-                // log("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
-                // mThreadManager.add(mThreadId, mPostProcessingWs, queueIn++, queueOut++);
-                // threadIdPP();
+                queueIn++;
+                queueOut++;
             }
             // If custom user Worker and uses its own thread
-            if (!mUserPostProcessingWs.empty())
+            if (!mUserPostProcessingWs.empty() && mUserPostProcessingWsOnNewThread)
             {
-                // If custom user Worker in its own thread
-                if (mUserPostProcessingWsOnNewThread)
+                // Post processing workers
+                if (!mPostProcessingWs.empty())
                 {
-                    log("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
-                    mThreadManager.add(mThreadId, mUserPostProcessingWs, queueIn++, queueOut++);
+                    // Thread 2 or 3, queues 2 -> 3
+                    mThreadManager.add(mThreadId, mPostProcessingWs, queueIn++, queueOut++);
                     threadIdPP();
                 }
-                // If custom user Worker in same thread
-                // Merge with mOutputWs
-                else
-                    mOutputWs = mergeVectors(mOutputWs, mUserPostProcessingWs);
-            }
-            // Output workers
-            if (!mOutputWs.empty())
-            {
-                // Thread 4 or 5, queues 4 -> 5
-                log("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
-                mThreadManager.add(mThreadId, mOutputWs, queueIn++, queueOut++);
+                // User processing workers
+                // Thread 3 or 4, queues 3 -> 4
+                mThreadManager.add(mThreadId, mUserPostProcessingWs, queueIn++, queueOut++);
                 threadIdPP();
+                // Output workers
+                if (!mOutputWs.empty())
+                {
+                    // Thread 4 or 5, queues 4 -> 5
+                    mThreadManager.add(mThreadId, mOutputWs, queueIn++, queueOut++);
+                    threadIdPP();
+                }
+            }
+            // If custom user Worker in same thread or producer on same thread
+            else
+            {
+                // Post processing workers + User post processing workers + Output workers
+                auto workersAux = mergeVectors(mPostProcessingWs, mUserPostProcessingWs);
+                workersAux = mergeVectors(workersAux, mOutputWs);
+                if (!workersAux.empty())
+                {
+                    // Thread 2 or 3, queues 2 -> 3
+                    mThreadManager.add(mThreadId, workersAux, queueIn++, queueOut++);
+                    threadIdPP();
+                }
             }
             // User output worker
             // Thread Y, queues Q -> Q+1
@@ -1460,21 +1272,16 @@ namespace op
             {
                 if (mUserOutputWsOnNewThread)
                 {
-                    log("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
                     mThreadManager.add(mThreadId, mUserOutputWs, queueIn++, queueOut++);
                     threadIdPP();
                 }
                 else
-                {
-                    log("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
                     mThreadManager.add(mThreadId-1, mUserOutputWs, queueIn++, queueOut++);
-                }
             }
             // OpenPose GUI
             if (spWGui != nullptr)
             {
                 // Thread Y+1, queues Q+1 -> Q+2
-                log("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
                 mThreadManager.add(mThreadId, spWGui, queueIn++, queueOut++);
                 threadIdPP();
             }
@@ -1486,8 +1293,8 @@ namespace op
         }
     }
 
-    template<typename TDatums, typename TDatumsSP, typename TWorker, typename TQueue>
-    unsigned long long Wrapper<TDatums, TDatumsSP, TWorker, TQueue>::threadIdPP()
+    template<typename TDatums, typename TWorker, typename TQueue>
+    unsigned long long Wrapper<TDatums, TWorker, TQueue>::threadIdPP()
     {
         try
         {

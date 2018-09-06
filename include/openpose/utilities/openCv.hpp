@@ -8,7 +8,10 @@
 namespace op
 {
     OP_API void putTextOnCvMat(cv::Mat& cvMat, const std::string& textToDisplay, const Point<int>& position,
-                               const cv::Scalar& color, const bool normalizeWidth, const int imageWidth);
+                   const cv::Scalar& color, const bool normalizeWidth, const int imageWidth);
+
+    OP_API void floatPtrToUCharCvMat(cv::Mat& uCharCvMat, const float* const floatPtrImage,
+                                     const std::array<int, 3> resolutionSize);
 
     OP_API void unrollArrayToUCharCvMat(cv::Mat& cvMatResult, const Array<float>& array);
 

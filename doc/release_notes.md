@@ -211,57 +211,8 @@ OpenPose Library - Release Notes
 
 
 
-## OpenPose 1.4.0 (Sep 01, 2018)
+## Current version - future OpenPose 1.3.1
 1. Main improvements:
-    1. Model BODY_25 released, that includes the 17 COCO keypoints + neck + midhip + 6 foot keypoints. It is also about 3% more accurate and 30% faster than the original `COCO` model.
-    2. New calibration module: Intrinsic and extrinsic camera calibration toolbox based on OpenCV.
-    3. Improvements involving Flir cameras:
-        1. Added software trigger and a dedicated thread to keep reading images so latency is removed and runtime is faster (analogously to webcamReader).
-        2. Undistortion of the images is x3.5 faster per camera, i.e., x3.5 Flir camera producer reading w.r.t previous multi-threaded version, which was x number_cameras faster than the original version.
-        3. Added flag `flir_camera_index` to allow running on all the cameras at once, or only on 1 camera at the time.
-        4. Added flag `frame_keep_distortion` not to undistort the images. E.g., useful when recording images for camera calibration.
-        5. Changed Spinnaker::DEFAULT image extraction mode by Spinnaker::IPP, which does not show a pixelated image while keeping very similar runtime.
-    4. 3-D reconstruction:
-        1. Added non-linear minimization to further improve 3-D triangulation accuracy by ~5% (Ubuntu only).
-        2. It is only run if reprojction error is more than a minimum threshold (improve speed with already good quality results) and also less than another outlier threshold.
-        3. Outliers are removed from final result if >= 3 camera views.
-        4. Applied RANSAC if >=4 camera views.
-        5. Latency highly reduced in multi-GPU setting. Each GPU process a different camera view, instead of a different time-instant sequence.
-    5. CMake: All libraries as single variable (simpler to add/remove libraries).
-    6. Averaged latency reduced to half.
-    7. 15% speed up for default CMake version. CMake was not setting `Release` mode by default.
-    8. Light speed up, and body approach much more invariant to number of people. Removed `checkEQ` from tight loop in bodyPartConnectorBase, which took a huge time exponential to the number of people.
-    9. Datum includes extrinsic and intrinsic camera parameters.
-    10. Function `scaleKeypoints(Array<float>& keypoints, const float scale)` also accepts 3D keypoints.
-    11. 3D keypoints and camera parameters in meters (instead of millimeters) in order to reduce numerical errors.
-    12. New `PoseExtractor` class to contain future ID and tracking algorithms as well as the current OpenPose keypoint detection algorithm.
-    13. Added initial alpha versions of the `tracking` and `identification` modules (for now disabled but available in the source code), including `PersonIdExtractor` and `PersonTracker`. `PersonIdExtractor` includes greedy matrix OP-LK matching.
-    14. Added catchs to all demos for higher debug information.
-    15. GUI includes the capability of dynamically enable/disable the face, hand, and 3-D rendering, as well as more clear visualization for skeleton, background, heatmap addition, and PAF addition channels.
-    16. When GUI changes some parameter from PoseExtractorNet, there is a log to notify the user of the change.
-    17. Deprecated flag `--write_keypoint_json` removed (`--write_json` is the equivalent since version 1.2.1).
-    18. Speed up of cvMatToOpOutput and opOutputToCvMat: op::Datum::outputData is now H x W x C instead of C x H x W, making it much faster to be copied to/from op::Datum::cvOutputData.
-    19. Much faster GUI display by adding the `WITH_OPENCV_WITH_OPENGL` flag to tell whether to use OpenGL support for OpenCV.
-    20. Turned security check error into warning when using dynamic `net_resolution` for `image_dir` in CPU/OpenCL versions.
-    21. Minimized CPU usage when queues are empty or full, in order to prevent problems such as general computer slow down, overheating, or excesive power usage.
-2. Functions or parameters renamed:
-    1. Removed scale parameter from hand and face rectangle extractor (causing wrong results if custom `--output_resolution`).
-    2. Functions `scaleKeypoints`, other than `scaleKeypoints(Array<float>& keypoints, const float scale)`, renamed as `scaleKeypoints2d`.
-    3. `(W)PoseExtractor` renamed to `(W)PoseExtractorNet` to distinguish from new `PoseExtractor`. Analogously with `(W)FaceExtractorNet` and `(W)HandExtractorNet`.
-    4. Experimental module removed and internal `tracking` folder moved to main openpose folder.
-    5. Switched GUI shortcuts for the kind of channel to render (skeleton, heatmap, PAF, ...) in order to make it more intuitive: 1 for skeleton, 1 for background heatmap, 2 for adding all heatmaps, 3 for adding all PAFs, and 4 to 0 for the initial heatmaps.
-3. Main bugs fixed:
-    1. Fixed hand and face extraction and rendering scaling issues when `--output_resolution` is not the default one.
-    2. Part candidates (`--part_candidates`) are saved with the same scale than the final keypoints itself.
-    3. Fixed bug in keepTopNPeople.hpp (`--number_people_max`) that provoked core dumped if lots of values equal to the threshold.
-    4. Flir cameras: Cameras sorted by serial number. Video and images recorded from flir cameras were (and are) assigned the camera parameters based on serial number order, so it would fail if the cameras order was not the same than if sorted by serial number.
-    5. CPU version working in non-Nvidia Windows machines.
-
-
-
-## Current version - future OpenPose 1.4.1
-1. Main improvements:
-    1. Added initial single-person tracker for further speed up or visual smoothing (`--tracking` flag).
 2. Functions or parameters renamed:
 3. Main bugs fixed:
 

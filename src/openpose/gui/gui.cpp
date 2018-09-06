@@ -28,13 +28,10 @@ namespace op
     }
 
     void handleWaitKey(bool& guiPaused, FrameDisplayer& frameDisplayer,
-                       std::vector<std::shared_ptr<PoseExtractorNet>>& poseExtractorNets,
-                       std::vector<std::shared_ptr<FaceExtractorNet>>& faceExtractorNets,
-                       std::vector<std::shared_ptr<HandExtractorNet>>& handExtractorNets,
+                       std::vector<std::shared_ptr<PoseExtractor>>& poseExtractors,
                        std::vector<std::shared_ptr<Renderer>>& renderers,
                        std::shared_ptr<std::atomic<bool>>& isRunningSharedPtr,
-                       std::shared_ptr<std::pair<std::atomic<bool>, std::atomic<int>>>& videoSeekSharedPtr,
-                       DisplayMode& displayMode, DisplayMode& displayModeOriginal)
+                       std::shared_ptr<std::pair<std::atomic<bool>, std::atomic<int>>>& videoSeekSharedPtr)
     {
         try
         {
@@ -91,50 +88,23 @@ namespace op
                 // ------------------------- OpenPose-Related ------------------------- //
                 // Modifying thresholds
                 else if (castedKey=='-' || castedKey=='=')
-                    for (auto& poseExtractorNet : poseExtractorNets)
-                        poseExtractorNet->increase(PoseProperty::NMSThreshold, 0.005f * (castedKey=='-' ? -1 : 1));
+                    for (auto& poseExtractor : poseExtractors)
+                        poseExtractor->increase(PoseProperty::NMSThreshold, 0.005f * (castedKey=='-' ? -1 : 1));
                 else if (castedKey=='_' || castedKey=='+')
-                    for (auto& poseExtractorNet : poseExtractorNets)
-                        poseExtractorNet->increase(PoseProperty::ConnectMinSubsetScore,
+                    for (auto& poseExtractor : poseExtractors)
+                        poseExtractor->increase(PoseProperty::ConnectMinSubsetScore,
                                                 0.005f * (castedKey=='_' ? -1 : 1));
                 else if (castedKey=='[' || castedKey==']')
-                    for (auto& poseExtractorNet : poseExtractorNets)
-                        poseExtractorNet->increase(PoseProperty::ConnectInterThreshold,
+                    for (auto& poseExtractor : poseExtractors)
+                        poseExtractor->increase(PoseProperty::ConnectInterThreshold,
                                                 0.005f * (castedKey=='[' ? -1 : 1));
                 else if (castedKey=='{' || castedKey=='}')
-                    for (auto& poseExtractorNet : poseExtractorNets)
-                        poseExtractorNet->increase(PoseProperty::ConnectInterMinAboveThreshold,
+                    for (auto& poseExtractor : poseExtractors)
+                        poseExtractor->increase(PoseProperty::ConnectInterMinAboveThreshold,
                                                 (castedKey=='{' ? -0.1f : 0.1f));
                 else if (castedKey==';' || castedKey=='\'')
-                    for (auto& poseExtractorNet : poseExtractorNets)
-                        poseExtractorNet->increase(PoseProperty::ConnectMinSubsetCnt, (castedKey==';' ? -1 : 1));
-                // ------------------------- Face/hands-Related ------------------------- //
-                // Enable/disable face
-                else if (castedKey=='z')
-                {
-                    for (auto& faceExtractorNet : faceExtractorNets)
-                        faceExtractorNet->setEnabled(!faceExtractorNet->getEnabled());
-                    // Warning if not enabled
-                    if (faceExtractorNets.empty())
-                        log("OpenPose must be run with face keypoint estimation enabled (`--face` flag).",
-                            Priority::High);
-                }
-                // Enable/disable hands
-                else if (castedKey=='x')
-                {
-                    for (auto& handExtractorNet : handExtractorNets)
-                        handExtractorNet->setEnabled(!handExtractorNet->getEnabled());
-                    // Warning if not enabled
-                    if (handExtractorNets.empty())
-                        log("OpenPose must be run with face keypoint estimation enabled (`--hand` flag).",
-                            Priority::High);
-                }
-                // Enable/disable extra rendering (3D/Adam), while keeping 2D rendering
-                else if (castedKey=='c')
-                {
-                    displayMode = (displayMode == displayModeOriginal
-                                   ? DisplayMode::Display2D : displayModeOriginal);
-                }
+                    for (auto& poseExtractor : poseExtractors)
+                        poseExtractor->increase(PoseProperty::ConnectMinSubsetCnt, (castedKey==';' ? -1 : 1));
                 // ------------------------- Miscellaneous ------------------------- //
                 // Show googly eyes
                 else if (castedKey=='g')
@@ -149,40 +119,11 @@ namespace op
                 }
                 else
                 {
-                    // Skeleton / Background / Add keypoints / Add PAFs
-                    const std::string key2part = "1234";
+                    const std::string key2part = "0123456789qwertyuiopasd";
                     const auto newElementToRender = key2part.find(castedKey);
                     if (newElementToRender != std::string::npos)
-                    {
-                        ElementToRender elementToRender;
-                        if (castedKey=='1')
-                            elementToRender = ElementToRender::Skeleton;
-                        else if (castedKey=='2')
-                            elementToRender = ElementToRender::Background;
-                        else if (castedKey=='3')
-                            elementToRender = ElementToRender::AddKeypoints;
-                        else if (castedKey=='4')
-                            elementToRender = ElementToRender::AddPAFs;
-                        else
-                        {
-                            error("Unknown ElementToRender value.", __LINE__, __FUNCTION__, __FILE__);
-                            elementToRender = ElementToRender::Skeleton;
-                        }
                         for (auto& renderer : renderers)
-                            renderer->setElementToRender(elementToRender);
-                    }
-
-                    // Heatmap visualization
-                    else
-                    {
-                        // Other rendering options
-                        // const std::string key2partHeatmaps = "0123456789qwertyuiopasd";
-                        const std::string key2partHeatmaps = "567890";
-                        const auto newElementToRender = key2partHeatmaps.find(castedKey);
-                        if (newElementToRender != std::string::npos)
-                            for (auto& renderer : renderers)
-                                renderer->setElementToRender((int)newElementToRender+key2part.size());
-                    }
+                            renderer->setElementToRender((int)newElementToRender);
                 }
             }
         }
@@ -192,26 +133,20 @@ namespace op
         }
     }
 
-    void handleUserInput(FrameDisplayer& frameDisplayer,
-                         std::vector<std::shared_ptr<PoseExtractorNet>>& poseExtractorNets,
-                         std::vector<std::shared_ptr<FaceExtractorNet>>& faceExtractorNets,
-                         std::vector<std::shared_ptr<HandExtractorNet>>& handExtractorNets,
+    void handleUserInput(FrameDisplayer& frameDisplayer, std::vector<std::shared_ptr<PoseExtractor>>& poseExtractors,
                          std::vector<std::shared_ptr<Renderer>>& renderers,
                          std::shared_ptr<std::atomic<bool>>& isRunningSharedPtr,
-                         std::shared_ptr<std::pair<std::atomic<bool>, std::atomic<int>>>& videoSeekSharedPtr,
-                         DisplayMode& displayMode, DisplayMode& displayModeOriginal)
+                         std::shared_ptr<std::pair<std::atomic<bool>, std::atomic<int>>>& videoSeekSharedPtr)
     {
         try
         {
             // The handleUserInput must be always performed, even if no tDatum is detected
             bool guiPaused = false;
-            handleWaitKey(guiPaused, frameDisplayer, poseExtractorNets, faceExtractorNets, handExtractorNets,
-                          renderers, isRunningSharedPtr, videoSeekSharedPtr, displayMode, displayModeOriginal);
+            handleWaitKey(guiPaused, frameDisplayer, poseExtractors, renderers, isRunningSharedPtr, videoSeekSharedPtr);
             while (guiPaused)
             {
                 std::this_thread::sleep_for(std::chrono::milliseconds{1});
-                handleWaitKey(guiPaused, frameDisplayer, poseExtractorNets, faceExtractorNets, handExtractorNets,
-                              renderers, isRunningSharedPtr, videoSeekSharedPtr, displayMode, displayModeOriginal);
+                handleWaitKey(guiPaused, frameDisplayer, poseExtractors, renderers, isRunningSharedPtr, videoSeekSharedPtr);
             }
         }
         catch (const std::exception& e)
@@ -223,18 +158,11 @@ namespace op
     Gui::Gui(const Point<int>& outputSize, const bool fullScreen,
              const std::shared_ptr<std::atomic<bool>>& isRunningSharedPtr,
              const std::shared_ptr<std::pair<std::atomic<bool>, std::atomic<int>>>& videoSeekSharedPtr,
-             const std::vector<std::shared_ptr<PoseExtractorNet>>& poseExtractorNets,
-             const std::vector<std::shared_ptr<FaceExtractorNet>>& faceExtractorNets,
-             const std::vector<std::shared_ptr<HandExtractorNet>>& handExtractorNets,
-             const std::vector<std::shared_ptr<Renderer>>& renderers,
-             const DisplayMode displayMode) :
+             const std::vector<std::shared_ptr<PoseExtractor>>& poseExtractors,
+             const std::vector<std::shared_ptr<Renderer>>& renderers) :
         spIsRunning{isRunningSharedPtr},
-        mDisplayMode{displayMode},
-        mDisplayModeOriginal{displayMode},
         mFrameDisplayer{OPEN_POSE_NAME_AND_VERSION, outputSize, fullScreen},
-        mPoseExtractorNets{poseExtractorNets},
-        mFaceExtractorNets{faceExtractorNets},
-        mHandExtractorNets{handExtractorNets},
+        mPoseExtractors{poseExtractors},
         mRenderers{renderers},
         spVideoSeek{videoSeekSharedPtr}
     {
@@ -287,8 +215,7 @@ namespace op
         try
         {
             // Handle user input
-            handleUserInput(mFrameDisplayer, mPoseExtractorNets, mFaceExtractorNets, mHandExtractorNets,
-                            mRenderers, spIsRunning, spVideoSeek, mDisplayMode, mDisplayModeOriginal);
+            handleUserInput(mFrameDisplayer, mPoseExtractors, mRenderers, spIsRunning, spVideoSeek);
         }
         catch (const std::exception& e)
         {

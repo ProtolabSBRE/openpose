@@ -8,44 +8,32 @@
 |-------------|
 |[![Build Status](https://travis-ci.org/CMU-Perceptual-Computing-Lab/openpose.svg?branch=master)](https://travis-ci.org/CMU-Perceptual-Computing-Lab/openpose)|
 
-[OpenPose](https://github.com/CMU-Perceptual-Computing-Lab/openpose) represents the **first real-time multi-person system to jointly detect human body, hand, and facial keypoints (in total 135 keypoints) on single images**.
+[OpenPose](https://github.com/CMU-Perceptual-Computing-Lab/openpose) represents the **first real-time multi-person system to jointly detect human body, hand, and facial keypoints (in total 130 keypoints) on single images**.
 
 <p align="center">
     <img src="doc/media/pose_face_hands.gif", width="480">
 </p>
 
-## Features
-- **Functionality**:
-    - **2D real-time multi-person keypoint detection**:
-        - 15 or 18 or **25-keypoint body/foot keypoint estimation**. **Running time invariant to number of detected people**.
-        - **2x21-keypoint hand keypoint estimation**. Currently, **running time depends** on **number of detected people**.
-        - **70-keypoint face keypoint estimation**. Currently, **running time depends** on **number of detected people**.
-    - **3D real-time single-person keypoint detection**:
-        - 3-D triangulation from multiple single views.
-        - Synchronization of Flir cameras handled.
-        - Compatible with Flir/Point Grey cameras, but provided C++ demos to add your custom input.
-    - **Calibration toolbox**:
-        - Easy estimation of distortion, intrinsic, and extrinsic camera parameters.
-    - **Single-person tracking** for further speed up or visual smoothing.
-- **Input**: Image, video, webcam, Flir/Point Grey and IP camera. Included C++ demos to add your custom input.
+**Functionality**:
+
+- **Real-time multi-person keypoint detection**.
+    - 15 or **18-keypoint body estimation**. **Running time invariant to number of detected people**.
+    - **2x21-keypoint hand** estimation. Currently, **running time depends** on **number of detected people**.
+    - **70-keypoint face** estimation. Currently, **running time depends** on **number of detected people**.
+- **Input**: Image, video, webcam, and IP camera. Included C++ demos to add your custom input.
 - **Output**: Basic image + keypoint display/saving (PNG, JPG, AVI, ...), keypoint saving (JSON, XML, YML, ...), and/or keypoints as array class.
-- **OS**: Ubuntu (14, 16), Windows (8, 10), Mac OSX, Nvidia TX2.
-- **Others**:
-    - Available: command-line demo, C++ wrapper, and C++ API.
-    - CUDA (Nvidia GPU), OpenCL (AMD GPU), and CPU versions.
+- Available: command-line demo, C++ wrapper, and C++ API.
+- **OS**: Ubuntu (14, 16), Windows (8, 10), Nvidia TX2.
 
 
 
 ## Latest Features
-- Sep 2018: [**Experimental single-person tracker**](doc/quick_start.md#tracking) for further speed up or visual smoothing!
-- Jun 2018: [**Combined body-foot model released! 40% faster and 5% more accurate**](doc/installation.md)!
-- Jun 2018: [**Python API**](doc/modules/python_module.md) released!
-- Jun 2018: [**OpenCL/AMD graphic card version**](doc/installation.md) released!
-- Jun 2018: [**Calibration toolbox**](doc/modules/calibration_module.md) released!
-- Jun 2018: [**Mac OSX version (CPU)**](doc/installation.md) released!
 - Mar 2018: [**CPU version**](doc/installation.md#cpu-version)!
-- Mar 2018: [**3-D keypoint reconstruction module**](doc/modules/3d_reconstruction_module.md) (from multiple camera views)!
-
+- Mar 2018: Improved [**3-D keypoint reconstruction module**](doc/3d_reconstruction_demo.md) (from multiple camera views)!
+- Sep 2017: [**CMake**](doc/installation.md) installer and **IP camera** support!
+- Jul 2017: [**Windows portable binaries and demo**](https://github.com/CMU-Perceptual-Computing-Lab/openpose/releases)!
+- Jul 2017: **Hands** released!
+- Jun 2017: **Face** released!
 For further details, check [all released features](doc/released_features.md) and [release notes](doc/release_notes.md).
 
 
@@ -62,12 +50,64 @@ For further details, check [all released features](doc/released_features.md) and
 9. [Citation](#citation)
 10. [License](#license)
 
+## Convert model to TensorRT
 
+For converting the Caffe model to TensorRT, we are going to use a nvidia tool. This tool, called `giexec`, is located in the samples folder of TensorRT and must be manually compiled (it's a way to check that your cuda and tensorrt libraries are correctly installed). It is recommended to first install the openpose lib (or at least the first step) to have all the files (e.g. caffe models)
+
+```
+cd /usr/src/tensorrt/samples/giexec
+sudo make
+```
+
+The giexec executable should now be in `/usr/src/tensorrt/samples/bin`
+
+In the following, OPENPOSE_CLONE_DIR refers to the cloned openpose folder (e.g openpose-rt repository)
+Modify the `OPENPOSE_CLONE_DIR/models/pose/coco/pose_deploy_linevec.prototxt` to specify the camera/image resolution for the network inference (dynamix size is not supported).
+The third `input_dim` corresponds to the height.
+The fourth `input_dim` corresponds to the width
+Example:
+```
+ input: "image"
+ input_dim: 1
+ input_dim: 3
+ input_dim: 240 # height = 240px
+ input_dim: 320 # width = 320px
+ layer {
+   name: "conv1_1"
+…
+```
+
+Convert the caffe model to TensorRT using giexec
+```
+/usr/src/tensorrt/bin/giexec --deploy=OPENPOSE_CLONE_DIR/models/pose/coco/pose_deploy_linevec.prototxt --output="net_output" --batch=1 --model=OPENPOSE_CLONE_DIR/models/pose/coco/pose_iter_440000.caffemodel --half2 --workspace=300 --engine=OPENPOSE_CLONE_DIR/models/tensorrt/rt_model.gie
+```
+The serialized engine name is hardcoded in openpose so keep this path and name !
+Giexec will display the size of the network output. Note the numbers (3 dimensions)
+
+In my case the network output size is `57x30x40`
+
+![](images/nt_output_size.png)
+
+Modify openpose code to work with your required network resolution in the file `OPENPOSE_CLONE_DIR/include/openpose/net/netRT.hpp`
+
+![](images/netrt_header.png)
+
+Compile again openpose to apply the change and install it
+```
+cd build
+sudo make install
+sudo cp -R OPENPOSE_CLONE_DIR/models /opt/openpose
+```
 
 ## Results
-### Body-Foot Estimation
+### 3-D Reconstruction Module
 <p align="center">
-    <img src="doc/media/dance_foot.gif", width="360">
+    <img src="doc/media/openpose3d.png", width="360">
+</p>
+
+### Body Estimation
+<p align="center">
+    <img src="doc/media/dance.gif", width="360">
 </p>
 
 ### Body, Face, and Hands Estimation
@@ -75,19 +115,9 @@ For further details, check [all released features](doc/released_features.md) and
     <img src="doc/media/pose_face.gif", width="360">
 </p>
 
-### 3-D Reconstruction Module
-<p align="center">
-    <img src="doc/media/openpose3d.gif", width="360">
-</p>
-
 ### Body and Hands Estimation
 <p align="center">
     <img src="doc/media/pose_hands.gif", width="360">
-</p>
-
-### Body Estimation
-<p align="center">
-    <img src="doc/media/dance.gif", width="360">
 </p>
 
 
@@ -110,9 +140,7 @@ Most users do not need the [OpenPose C++ API](#openpose-c-api), but they can sim
 bin\OpenPoseDemo.exe --video examples\media\video.avi
 ```
 
-- **Calibration toolbox**: To easily calibrate your cameras for 3-D OpenPose or any other stereo vision task. See [doc/modules/calibration_module.md](doc/modules/calibration_module.md).
-
-- **OpenPose Wrapper**: If you want to read a specific input, and/or add your custom post-processing function, and/or implement your own display/saving, check the `Wrapper` tutorial on [examples/tutorial_wrapper/](examples/tutorial_wrapper/). You can create your custom code on [examples/user_code/](examples/user_code/) and quickly compile it with CMake when compiling the whole OpenPose project. Quickly **add your custom code**: See [examples/user_code/README.md](examples/user_code/README.md) for further details.
+- **OpenPose Wrapper**: If you want to read a specific input, and/or add your custom post-processing function, and/or implement your own display/saving, check the `Wrapper` tutorial on [examples/tutorial_wrapper/](examples/tutorial_wrapper/). You can create your custom code on [examples/user_code/](examples/user_code/) and quickly compile it by using `make all` in the OpenPose folder (assuming Makefile installer).
 
 - **OpenPose C++ API**: See [doc/library_introduction.md](doc/library_introduction.md).
 
@@ -132,7 +160,7 @@ Output (format, keypoint index ordering, etc.) in [doc/output.md](doc/output.md)
 
 
 ## Speeding Up OpenPose and Benchmark
-Check the OpenPose Benchmark as well as some hints to speed up and/or reduce the memory requirements for OpenPose on [doc/faq.md#speed-up-memory-reduction-and-benchmark](doc/faq.md#speed-up-memory-reduction-and-benchmark).
+Check the OpenPose Benchmark and some hints to speed up OpenPose on [doc/faq.md#speed-up-and-benchmark](doc/faq.md#speed-up-and-benchmark).
 
 
 
@@ -151,7 +179,7 @@ Just comment on GitHub or make a pull request and we will answer as soon as poss
 
 
 ## Authors and Contributors
-OpenPose is authored by [Gines Hidalgo](https://www.gineshidalgo.com/), [Zhe Cao](http://www.andrew.cmu.edu/user/zhecao), [Tomas Simon](http://www.cs.cmu.edu/~tsimon/), [Shih-En Wei](https://scholar.google.com/citations?user=sFQD3k4AAAAJ&hl=en), [Hanbyul Joo](http://www.cs.cmu.edu/~hanbyulj/), and [Yaser Sheikh](http://www.cs.cmu.edu/~yaser/). Currently, it is being maintained by [Gines Hidalgo](https://www.gineshidalgo.com/) and [Yaadhav Raaj](https://www.linkedin.com/in/yaadhavraaj). The [original CVPR 2017 repo](https://github.com/ZheC/Multi-Person-Pose-Estimation) includes Matlab and Python versions, as well as the training code. The body pose estimation work is based on [the original ECCV 2016 demo](https://github.com/CMU-Perceptual-Computing-Lab/caffe_rtpose).
+OpenPose is authored by [Gines Hidalgo](https://www.gineshidalgo.com/), [Zhe Cao](http://www.andrew.cmu.edu/user/zhecao), [Tomas Simon](http://www.cs.cmu.edu/~tsimon/), [Shih-En Wei](https://scholar.google.com/citations?user=sFQD3k4AAAAJ&hl=en), [Hanbyul Joo](http://www.cs.cmu.edu/~hanbyulj/), and [Yaser Sheikh](http://www.cs.cmu.edu/~yaser/). Currently, it is being maintained by [Gines Hidalgo](https://www.gineshidalgo.com/), [Bikramjot Hanzra](https://www.linkedin.com/in/bikz05), and [Yaadhav Raaj](https://www.linkedin.com/in/yaadhavraaj). The [original CVPR 2017 repo](https://github.com/ZheC/Multi-Person-Pose-Estimation) includes Matlab and Python versions, as well as the training code. The body pose estimation work is based on [the original ECCV 2016 demo](https://github.com/CMU-Perceptual-Computing-Lab/caffe_rtpose).
 
 In addition, OpenPose would not be possible without the [CMU Panoptic Studio dataset](http://domedb.perception.cs.cmu.edu/).
 

@@ -10,8 +10,7 @@
 
 namespace op
 {
-    PoseGpuRenderer::PoseGpuRenderer(const PoseModel poseModel,
-                                     const std::shared_ptr<PoseExtractorNet>& poseExtractorNet,
+    PoseGpuRenderer::PoseGpuRenderer(const PoseModel poseModel, const std::shared_ptr<PoseExtractor>& poseExtractor,
                                      const float renderThreshold, const bool blendOriginalFrame,
                                      const float alphaKeypoint, const float alphaHeatMap,
                                      const unsigned int elementToRender) :
@@ -21,7 +20,7 @@ namespace op
         GpuRenderer{renderThreshold, alphaKeypoint, alphaHeatMap, blendOriginalFrame, elementToRender,
                     getNumberElementsToRender(poseModel)}, // mNumberElementsToRender
         PoseRenderer{poseModel},
-        spPoseExtractorNet{poseExtractorNet},
+        spPoseExtractor{poseExtractor},
         pGpuPose{nullptr}
     {
     }
@@ -81,8 +80,7 @@ namespace op
                     cudaCheck(__LINE__, __FUNCTION__, __FILE__);
                     const auto numberBodyParts = getPoseNumberBodyParts(mPoseModel);
                     const auto numberBodyPartsPlusBkg = numberBodyParts+1;
-                    const auto numberBodyPAFChannels = getPosePartPairs(mPoseModel).size();
-                    const Point<int> frameSize{outputData.getSize(1), outputData.getSize(0)};
+                    const Point<int> frameSize{outputData.getSize(2), outputData.getSize(1)};
                     // Draw poseKeypoints
                     if (elementRendered == 0)
                     {
@@ -107,68 +105,46 @@ namespace op
                         if (scaleNetToOutput == -1.f)
                             error("Non valid scaleNetToOutput.", __LINE__, __FUNCTION__, __FILE__);
                         // Parameters
-                        const auto& heatMapSizes = spPoseExtractorNet->getHeatMapSize();
+                        const auto& heatMapSizes = spPoseExtractor->getHeatMapSize();
                         const Point<int> heatMapSize{heatMapSizes[3], heatMapSizes[2]};
-                        const auto lastPAFChannel = numberBodyPartsPlusBkg+2+numberBodyPAFChannels/2;
-                        // Add all heatmaps
-                        if (elementRendered == 2)
-                        // if (elementRendered == numberBodyPartsPlusBkg+1)
+                        // Draw specific body part or bkg
+                        if (elementRendered <= numberBodyPartsPlusBkg)
+                        {
+                            elementRenderedName = mPartIndexToName.at(elementRendered-1);
+                            renderPoseHeatMapGpu(*spGpuMemory, mPoseModel, frameSize,
+                                                 spPoseExtractor->getHeatMapGpuConstPtr(),
+                                                 heatMapSize, scaleNetToOutput * scaleInputToOutput, elementRendered,
+                                                 (mBlendOriginalFrame ? getAlphaHeatMap() : 1.f));
+                        }
+                        // Draw PAFs (Part Affinity Fields)
+                        else if (elementRendered == numberBodyPartsPlusBkg+1)
                         {
                             elementRenderedName = "Heatmaps";
                             renderPoseHeatMapsGpu(*spGpuMemory, mPoseModel, frameSize,
-                                                  spPoseExtractorNet->getHeatMapGpuConstPtr(),
+                                                  spPoseExtractor->getHeatMapGpuConstPtr(),
                                                   heatMapSize, scaleNetToOutput * scaleInputToOutput,
                                                   (mBlendOriginalFrame ? getAlphaHeatMap() : 1.f));
                         }
                         // Draw PAFs (Part Affinity Fields)
-                        else if (elementRendered == 3)
-                        // else if (elementRendered == numberBodyPartsPlusBkg+2)
+                        else if (elementRendered == numberBodyPartsPlusBkg+2)
                         {
                             elementRenderedName = "PAFs (Part Affinity Fields)";
                             renderPosePAFsGpu(*spGpuMemory, mPoseModel, frameSize,
-                                              spPoseExtractorNet->getHeatMapGpuConstPtr(),
+                                              spPoseExtractor->getHeatMapGpuConstPtr(),
                                               heatMapSize, scaleNetToOutput * scaleInputToOutput,
                                               (mBlendOriginalFrame ? getAlphaHeatMap() : 1.f));
                         }
-                        // Draw specific body part or background
-                        else if (elementRendered <= numberBodyPartsPlusBkg+2)
-                        {
-                            const auto realElementRendered = (elementRendered == 1
-                                                                ? numberBodyParts
-                                                                : elementRendered - 4);
-                            elementRenderedName = mPartIndexToName.at(realElementRendered);
-                            renderPoseHeatMapGpu(*spGpuMemory, mPoseModel, frameSize,
-                                                 spPoseExtractorNet->getHeatMapGpuConstPtr(),
-                                                 heatMapSize, scaleNetToOutput * scaleInputToOutput, realElementRendered,
-                                                 (mBlendOriginalFrame ? getAlphaHeatMap() : 1.f));
-                        }
                         // Draw affinity between 2 body parts
-                        else if (elementRendered <= lastPAFChannel)
+                        else
                         {
                             const auto affinityPart = (elementRendered-numberBodyPartsPlusBkg-3)*2;
-                            const auto affinityPartMapped = numberBodyPartsPlusBkg
-                                                          + getPoseMapIndex(mPoseModel).at(affinityPart);
+                            const auto affinityPartMapped = getPoseMapIndex(mPoseModel).at(affinityPart);
                             elementRenderedName = mPartIndexToName.at(affinityPartMapped);
                             elementRenderedName = elementRenderedName.substr(0, elementRenderedName.find("("));
                             renderPosePAFGpu(*spGpuMemory, mPoseModel, frameSize,
-                                             spPoseExtractorNet->getHeatMapGpuConstPtr(),
+                                             spPoseExtractor->getHeatMapGpuConstPtr(),
                                              heatMapSize, scaleNetToOutput * scaleInputToOutput, affinityPartMapped,
                                              (mBlendOriginalFrame ? getAlphaHeatMap() : 1.f));
-                        }
-                        // Draw neck-part distance channel
-                        else
-                        {
-                            if (mPoseModel != PoseModel::BODY_25D)
-                                error("Neck-part distance channel only for BODY_25D.",
-                                      __LINE__, __FUNCTION__, __FILE__);
-                            const auto distancePart = (elementRendered - lastPAFChannel - 1);
-                            const auto distancePartMapped = numberBodyPartsPlusBkg + numberBodyPAFChannels
-                                                          + distancePart;
-                            elementRenderedName = mPartIndexToName.at(distancePartMapped);
-                            renderPoseDistance(*spGpuMemory, mPoseModel, frameSize,
-                                               spPoseExtractorNet->getHeatMapGpuConstPtr(),
-                                               heatMapSize, scaleNetToOutput * scaleInputToOutput, distancePartMapped,
-                                               (mBlendOriginalFrame ? getAlphaHeatMap() : 1.f));
                         }
                     }
                 }

@@ -165,7 +165,6 @@ namespace op
     {
         try
         {
-            log("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
             for (auto& subThread : mSubThreads)
                 subThread->initializationOnThread();
         }

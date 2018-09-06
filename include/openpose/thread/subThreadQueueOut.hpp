@@ -49,29 +49,19 @@ namespace op
                 return false;
             else
             {
-                // Don't work until next queue is not full
-                // This reduces latency to half
-                if (!spTQueueOut->isFull())
+                // Process TDatums
+                TDatums tDatums;
+                const auto workersAreRunning = this->workTWorkers(tDatums, true);
+                // Push/emplace tDatums if successfully processed
+                if (workersAreRunning)
                 {
-                    // Process TDatums
-                    TDatums tDatums;
-                    const auto workersAreRunning = this->workTWorkers(tDatums, true);
-                    // Push/emplace tDatums if successfully processed
-                    if (workersAreRunning)
-                    {
-                        if (tDatums != nullptr)
-                            spTQueueOut->waitAndEmplace(tDatums);
-                    }
-                    // Close queue otherwise
-                    else
-                        spTQueueOut->stopPusher();
-                    return workersAreRunning;
+                    if (tDatums != nullptr)
+                        spTQueueOut->waitAndEmplace(tDatums);
                 }
+                // Close queue otherwise
                 else
-                {
-                    std::this_thread::sleep_for(std::chrono::microseconds{100});
-                    return true;
-                }
+                    spTQueueOut->stopPusher();
+                return workersAreRunning;
             }
         }
         catch (const std::exception& e)

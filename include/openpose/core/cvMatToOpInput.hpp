@@ -10,7 +10,7 @@ namespace op
     class OP_API CvMatToOpInput
     {
     public:
-        CvMatToOpInput(const PoseModel poseModel = PoseModel::BODY_25);
+        CvMatToOpInput(const PoseModel poseModel = PoseModel::COCO_18);
 
         std::vector<Array<float>> createArray(const cv::Mat& cvInputData,
                                               const std::vector<double>& scaleInputToNetInputs,

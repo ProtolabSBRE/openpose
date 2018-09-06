@@ -1,4 +1,4 @@
-#ifdef USE_CAFFE
+#if defined USE_CAFFE
     #include <caffe/blob.hpp>
 #endif
 #include <opencv2/opencv.hpp> // CV_WARP_INVERSE_MAP, CV_INTER_LINEAR
@@ -15,7 +15,7 @@ namespace op
 {
     struct FaceExtractorCaffe::ImplFaceExtractorCaffe
     {
-        #ifdef USE_CAFFE
+        #if defined USE_CAFFE
             bool netInitialized;
             const int mGpuId;
             std::shared_ptr<NetCaffe> spNetCaffe;
@@ -38,7 +38,7 @@ namespace op
         #endif
     };
 
-    #ifdef USE_CAFFE
+    #if defined USE_CAFFE
         void updateFaceHeatMapsForPerson(Array<float>& heatMaps, const int person, const ScaleMode heatMapScaleMode,
                                          const float* heatMapsGpuPtr)
         {
@@ -107,14 +107,14 @@ namespace op
                                            const std::string& modelFolder, const int gpuId,
                                            const std::vector<HeatMapType>& heatMapTypes,
                                            const ScaleMode heatMapScale, const bool enableGoogleLogging) :
-        FaceExtractorNet{netInputSize, netOutputSize, heatMapTypes, heatMapScale}
-        #ifdef USE_CAFFE
+        FaceExtractor{netInputSize, netOutputSize, heatMapTypes, heatMapScale}
+        #if defined USE_CAFFE
         , upImpl{new ImplFaceExtractorCaffe{modelFolder, gpuId, enableGoogleLogging}}
         #endif
     {
         try
         {
-            #ifndef USE_CAFFE
+            #if !defined USE_CAFFE
                 UNUSED(netInputSize);
                 UNUSED(netOutputSize);
                 UNUSED(modelFolder);
@@ -123,10 +123,6 @@ namespace op
                 UNUSED(heatMapScale);
                 error("OpenPose must be compiled with the `USE_CAFFE` & `USE_CUDA` macro definitions in order to run"
                       " this functionality.", __LINE__, __FUNCTION__, __FILE__);
-            #endif
-            #ifdef COMMERCIAL_LICENSE
-                error("Face is not included in the commercial version of OpenPose yet. We might include it in the future after some"
-                      " commercial issues have been solved. Thanks!", __LINE__, __FUNCTION__, __FILE__);
             #endif
         }
         catch (const std::exception& e)
@@ -143,7 +139,7 @@ namespace op
     {
         try
         {
-            #ifdef USE_CAFFE
+            #if defined USE_CAFFE
                 // Logging
                 log("Starting initialization on thread.", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
                 // Initialize Caffe net
@@ -169,12 +165,13 @@ namespace op
     }
 
     void FaceExtractorCaffe::forwardPass(const std::vector<Rectangle<float>>& faceRectangles,
-                                         const cv::Mat& cvInputData)
+                                         const cv::Mat& cvInputData,
+                                         const double scaleInputToOutput)
     {
         try
         {
-            #ifdef USE_CAFFE
-                if (mEnabled && !faceRectangles.empty())
+            #if defined USE_CAFFE
+                if (!faceRectangles.empty())
                 {
                     // Security checks
                     if (cvInputData.empty())
@@ -285,12 +282,14 @@ namespace op
                                 const auto score = facePeaksPtr[xyIndex + 2];
                                 const auto baseIndex = mFaceKeypoints.getSize(2)
                                                      * (part + person * mFaceKeypoints.getSize(1));
-                                mFaceKeypoints[baseIndex] = (float)(Mscaling.at<double>(0,0) * x
-                                                                    + Mscaling.at<double>(0,1) * y
-                                                                    + Mscaling.at<double>(0,2));
-                                mFaceKeypoints[baseIndex+1] = (float)(Mscaling.at<double>(1,0) * x
-                                                                      + Mscaling.at<double>(1,1) * y
-                                                                      + Mscaling.at<double>(1,2));
+                                mFaceKeypoints[baseIndex] = (float)(scaleInputToOutput
+                                                                    * (Mscaling.at<double>(0,0) * x
+                                                                       + Mscaling.at<double>(0,1) * y
+                                                                       + Mscaling.at<double>(0,2)));
+                                mFaceKeypoints[baseIndex+1] = (float)(scaleInputToOutput
+                                                                      * (Mscaling.at<double>(1,0) * x
+                                                                         + Mscaling.at<double>(1,1) * y
+                                                                         + Mscaling.at<double>(1,2)));
                                 mFaceKeypoints[baseIndex+2] = score;
                             }
                             // HeatMaps: storing
@@ -313,6 +312,7 @@ namespace op
             #else
                 UNUSED(faceRectangles);
                 UNUSED(cvInputData);
+                UNUSED(scaleInputToOutput);
             #endif
         }
         catch (const std::exception& e)

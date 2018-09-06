@@ -71,7 +71,7 @@ namespace op
                         cvOutputDatas.emplace_back(tDatum.cvOutputData);
                     spGui->setImage(cvOutputDatas);
                 }
-                // Refresh/update GUI
+                // Refresh GUI
                 spGui->update();
                 // Profiling speed
                 if (!tDatums->empty())

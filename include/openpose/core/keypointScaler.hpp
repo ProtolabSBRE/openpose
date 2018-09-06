@@ -17,9 +17,6 @@ namespace op
         void scale(std::vector<Array<float>>& arraysToScale, const double scaleInputToOutput,
                    const double scaleNetToOutput, const Point<int>& producerSize) const;
 
-        void scale(std::vector<std::vector<std::array<float,3>>>& poseCandidates, const double scaleInputToOutput,
-                   const double scaleNetToOutput, const Point<int>& producerSize) const;
-
     private:
         const ScaleMode mScaleMode;
     };

@@ -9,27 +9,29 @@
 
 namespace op
 {
+    // This worker will do 3-D rendering
     class OP_API Gui3D : public Gui
     {
     public:
         Gui3D(const Point<int>& outputSize, const bool fullScreen,
               const std::shared_ptr<std::atomic<bool>>& isRunningSharedPtr,
               const std::shared_ptr<std::pair<std::atomic<bool>, std::atomic<int>>>& videoSeekSharedPtr = nullptr,
-              const std::vector<std::shared_ptr<PoseExtractorNet>>& poseExtractorNets = {},
-              const std::vector<std::shared_ptr<FaceExtractorNet>>& faceExtractorNets = {},
-              const std::vector<std::shared_ptr<HandExtractorNet>>& handExtractorNets = {},
+              const std::vector<std::shared_ptr<PoseExtractor>>& poseExtractors = {},
               const std::vector<std::shared_ptr<Renderer>>& renderers = {},
-              const PoseModel poseModel = PoseModel::BODY_25,
+              const PoseModel poseModel = PoseModel::COCO_18,
               const DisplayMode displayMode = DisplayMode::DisplayAll);
 
-        virtual ~Gui3D();
+        ~Gui3D();
 
-        virtual void initializationOnThread();
+        void initializationOnThread();
 
         void setKeypoints(const Array<float>& poseKeypoints3D, const Array<float>& faceKeypoints3D,
                           const Array<float>& leftHandKeypoints3D, const Array<float>& rightHandKeypoints3D);
 
-        virtual void update();
+        void update();
+
+    private:
+        DisplayMode mDisplayMode;
     };
 }
 

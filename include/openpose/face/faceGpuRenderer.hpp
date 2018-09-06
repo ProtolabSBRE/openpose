@@ -19,7 +19,7 @@ namespace op
 
         void initializationOnThread();
 
-        void renderFaceInherited(Array<float>& outputData, const Array<float>& faceKeypoints);
+        void renderFace(Array<float>& outputData, const Array<float>& faceKeypoints);
 
     private:
         float* pGpuFace; // GPU aux memory

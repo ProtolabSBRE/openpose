@@ -14,43 +14,35 @@ namespace op
         try
         {
             log("", Priority::Low, __LINE__, __FUNCTION__, __FILE__);
-            // Body pose
-            if (poseModeString == "BODY_25")
-                return PoseModel::BODY_25;
-            else if (poseModeString == "COCO")
+            if (poseModeString == "COCO")
                 return PoseModel::COCO_18;
             else if (poseModeString == "MPI")
                 return PoseModel::MPI_15;
             else if (poseModeString == "MPI_4_layers")
                 return PoseModel::MPI_15_4;
+            else if (poseModeString == "BODY_18")
+                return PoseModel::BODY_18;
             else if (poseModeString == "BODY_19")
                 return PoseModel::BODY_19;
-            else if (poseModeString == "BODY_25E")
-                return PoseModel::BODY_25E;
+            else if (poseModeString == "BODY_19b")
+                return PoseModel::BODY_19b;
             else if (poseModeString == "BODY_19N")
                 return PoseModel::BODY_19N;
             else if (poseModeString == "BODY_19_X2")
                 return PoseModel::BODY_19_X2;
-            else if (poseModeString == "BODY_25_19")
-                return PoseModel::BODY_25_19;
+            else if (poseModeString == "BODY_23")
+                return PoseModel::BODY_23;
             else if (poseModeString == "BODY_59")
                 return PoseModel::BODY_59;
-            else if (poseModeString == "BODY_65")
-                return PoseModel::BODY_65;
-            if (poseModeString == "BODY_25D")
-                return PoseModel::BODY_25D;
-            // Car pose
-            else if (poseModeString == "CAR_12")
-                return PoseModel::CAR_12;
             // else
-            error("String (`" + poseModeString + "`) does not correspond to any model (BODY_25, COCO, MPI,"
-                  " MPI_4_layers).", __LINE__, __FUNCTION__, __FILE__);
-            return PoseModel::BODY_25;
+            error("String does not correspond to any model (COCO, MPI, MPI_4_layers)",
+                  __LINE__, __FUNCTION__, __FILE__);
+            return PoseModel::COCO_18;
         }
         catch (const std::exception& e)
         {
             error(e.what(), __LINE__, __FUNCTION__, __FILE__);
-            return PoseModel::BODY_25;
+            return PoseModel::COCO_18;
         }
     }
 
@@ -150,8 +142,7 @@ namespace op
                                               const std::string& ipCameraPath, const int webcamIndex,
                                               const bool flirCamera, const std::string& cameraResolution,
                                               const double webcamFps, const std::string& cameraParameterPath,
-                                              const bool undistortImage, const unsigned int imageDirectoryStereo,
-                                              const int flirCameraIndex)
+                                              const unsigned int imageDirectoryStereo)
     {
         try
         {
@@ -170,8 +161,7 @@ namespace op
             {
                 // cameraFrameSize
                 const auto cameraFrameSize = flagsToPoint(cameraResolution, "-1x-1");
-                return std::make_shared<FlirReader>(cameraParameterPath, cameraFrameSize, undistortImage,
-                                                    flirCameraIndex);
+                return std::make_shared<FlirReader>(cameraParameterPath, cameraFrameSize);
             }
             // Webcam
             if (type == ProducerType::Webcam)

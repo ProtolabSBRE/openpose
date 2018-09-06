@@ -128,26 +128,13 @@ namespace op
     }
 
     template <typename T>
-    void NmsCaffe<T>::setOffset(const Point<T>& offset)
-    {
-        try
-        {
-            mOffset = {offset};
-        }
-        catch (const std::exception& e)
-        {
-            error(e.what(), __LINE__, __FUNCTION__, __FILE__);
-        }
-    }
-
-    template <typename T>
     void NmsCaffe<T>::Forward_cpu(const std::vector<caffe::Blob<T>*>& bottom, const std::vector<caffe::Blob<T>*>& top)
     {
         try
         {
             #ifdef USE_CAFFE
                 nmsCpu(top.at(0)->mutable_cpu_data(), upImpl->mKernelBlob.mutable_cpu_data(), bottom.at(0)->cpu_data(),
-                       mThreshold, upImpl->mTopSize, upImpl->mBottomSize, mOffset);
+                       mThreshold, upImpl->mTopSize, upImpl->mBottomSize);
             #else
                 UNUSED(bottom);
                 UNUSED(top);
@@ -166,7 +153,7 @@ namespace op
         {
             #if defined USE_CAFFE && defined USE_CUDA
                 nmsGpu(top.at(0)->mutable_gpu_data(), upImpl->mKernelBlob.mutable_gpu_data(),
-                       bottom.at(0)->gpu_data(), mThreshold, upImpl->mTopSize, upImpl->mBottomSize, mOffset);
+                       bottom.at(0)->gpu_data(), mThreshold, upImpl->mTopSize, upImpl->mBottomSize);
             #else
                 UNUSED(bottom);
                 UNUSED(top);
@@ -187,8 +174,7 @@ namespace op
         {
             #if defined USE_CAFFE && defined USE_OPENCL
                 nmsOcl(top.at(0)->mutable_gpu_data(), upImpl->mKernelBlobT->mutable_gpu_data(),
-                       bottom.at(0)->gpu_data(), mThreshold, upImpl->mTopSize, upImpl->mBottomSize, mOffset,
-                       mGpuID);
+                       bottom.at(0)->gpu_data(), mThreshold, upImpl->mTopSize, upImpl->mBottomSize, mGpuID);
             #else
                 UNUSED(bottom);
                 UNUSED(top);

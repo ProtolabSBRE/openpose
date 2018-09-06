@@ -12,9 +12,12 @@ namespace op
         {
             if (!frameArray.empty())
             {
+                // Array<float> --> cv::Mat
+                auto frame = frameArray.getCvMat();
+
                 // Background
                 if (!blendOriginalFrame)
-                    frameArray.getCvMat().setTo(0.f); // [0-255]
+                    frame.setTo(0.f); // [0-255]
 
                 // Parameters
                 const auto thicknessCircleRatio = 1.f/75.f;

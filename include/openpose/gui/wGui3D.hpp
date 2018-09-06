@@ -7,7 +7,6 @@
 
 namespace op
 {
-    // This worker will do 3-D rendering
     template<typename TDatums>
     class WGui3D : public WorkerConsumer<TDatums>
     {

@@ -10,12 +10,7 @@ namespace op
     public:
         virtual void initializationOnThread(){};
 
-        void renderHand(Array<float>& outputData, const std::array<Array<float>, 2>& handKeypoints,
-                        const float scaleInputToOutput);
-
-    private:
-        virtual void renderHandInherited(Array<float>& outputData,
-                                         const std::array<Array<float>, 2>& handKeypoints) = 0;
+        virtual void renderHand(Array<float>& outputData, const std::array<Array<float>, 2>& handKeypoints) = 0;
     };
 }
 
