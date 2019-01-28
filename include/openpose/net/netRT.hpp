@@ -35,8 +35,8 @@ namespace op
 
         static constexpr int NB_BINDINGS = 2; // One input and one output
         const int INPUT_IMAGE_NBR_CHANNELS = 3;
-        const int INPUT_IMAGE_HEIGHT = 320;
-        const int INPUT_IMAGE_WIDTH = 240;
+        const int INPUT_IMAGE_HEIGHT = 240;
+        const int INPUT_IMAGE_WIDTH = 320;
 
         const int OUTPUT_HEATMAP_NB_CHANNELS = 57;
         const int OUTPUT_HEATMAP_HEIGHT = 40;
